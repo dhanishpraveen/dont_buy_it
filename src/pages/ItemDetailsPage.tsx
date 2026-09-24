@@ -1,0 +1,22 @@
+import { ArrowLeft, Bookmark, Check, MapPin, MessageCircle, ShieldCheck } from 'lucide-react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { ItemGallery } from '../components/items/ItemGallery';
+import { ItemCard } from '../components/items/ItemCard';
+import { StatusBadge } from '../components/items/StatusBadge';
+import { UserCard } from '../components/items/UserCard';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Divider } from '../components/ui/Divider';
+import { TrustBadge } from '../components/items/TrustBadge';
+import { mockItems } from '../data/mockItems';
+
+export function ItemDetailsPage() {
+    const { id } = useParams();
+    const navigate = useNavigate();
+    const [saved, setSaved] = useState(false);
+    const item = mockItems.find((candidate) => candidate.id === id);
+    if (!item) return <div className="py-20 text-center"><h1 className="font-display text-3xl font-semibold">Item not found</h1><Link to="/browse" className="mt-4 inline-block text-sm font-semibold text-bark underline">Back to browse</Link></div>;
+    const similarItems = mockItems.filter((candidate) => candidate.category === item.category && candidate.id !== item.id).slice(0, 3);
+    return <div><button onClick={() => navigate(-1)} className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-bark"><ArrowLeft size={16} />Back to browse</button><div className="grid gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(330px,0.85fr)]"><ItemGallery name={item.name} images={item.gallery} /><div><div className="flex flex-wrap items-center gap-3"><span className="rounded-full bg-sage-soft px-3 py-1 text-xs font-bold text-sage">{item.category}</span><StatusBadge availability={item.availability} /></div><h1 className="mt-4 font-display text-4xl font-semibold leading-tight text-ink sm:text-5xl">{item.name}</h1><p className="mt-4 text-base leading-7 text-muted">{item.description}</p><div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted"><span className="inline-flex items-center gap-1.5"><MapPin size={15} />{item.location}</span><span>{item.distance} km away</span><span className="inline-flex items-center gap-1.5"><ShieldCheck size={15} className="text-sage" />{item.condition}</span></div><div className="mt-7 flex flex-wrap gap-3"><Button onClick={() => alert('Request flow will be added in a later phase.')}>Send borrow request</Button><Button variant="outline" onClick={() => alert('Messaging will be added in a later phase.')}><MessageCircle size={17} />Message</Button><Button variant={saved ? 'secondary' : 'outline'} onClick={() => setSaved((current) => !current)}><Bookmark size={17} fill={saved ? 'currentColor' : 'none'} />{saved ? 'Saved' : 'Save'}</Button></div><div className="mt-8"><UserCard item={item} /></div></div></div><div className="mt-12 grid gap-8 lg:grid-cols-[1fr_0.72fr]"><Card className="p-6"><h2 className="font-display text-2xl font-semibold">Item details</h2><Divider className="my-5" /><dl className="grid gap-4 sm:grid-cols-3">{item.specifications.map((specification) => <div key={specification.label}><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">{specification.label}</dt><dd className="mt-1 text-sm font-semibold text-ink">{specification.value}</dd></div>)}</dl><div className="mt-6 flex items-center gap-2 text-sm text-sage"><Check size={17} />Available for community borrowing</div></Card><Card className="min-h-64 overflow-hidden p-0"><div className="flex h-full min-h-64 items-center justify-center bg-sage-soft"><div className="text-center"><MapPin size={28} className="mx-auto text-sage" /><h2 className="mt-3 font-display text-xl font-semibold">Near {item.location}</h2><p className="mt-1 text-sm text-muted">Map view will connect in a later phase.</p><TrustBadge score={item.ownerTrust} /></div></div></Card></div>{similarItems.length ? <section className="mt-14"><div className="mb-5 flex items-end justify-between"><h2 className="font-display text-2xl font-semibold">You might also like</h2><Link to={`/browse?category=${encodeURIComponent(item.category)}`} className="text-sm font-semibold text-bark">See more</Link></div><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{similarItems.map((similar) => <ItemCard key={similar.id} item={similar} />)}</div></section> : null}</div>;
+}

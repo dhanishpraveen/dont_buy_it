@@ -3,9 +3,12 @@ import { AuthenticatedLayout } from './components/layout/AuthenticatedLayout';
 import { PublicLayout } from './components/layout/PublicLayout';
 import { CommunityRoute } from './pages/CommunityRoute';
 import { RoutePlaceholder } from './pages/RoutePlaceholder';
+import { HomePage } from './pages/HomePage';
+import { DashboardPage } from './pages/DashboardPage';
+import { BrowsePage } from './pages/BrowsePage';
+import { ItemDetailsPage } from './pages/ItemDetailsPage';
 
 const publicRoutes = [
-    { path: '/', title: 'Home' },
     { path: '/how-it-works', title: 'How It Works' },
     { path: '/about', title: 'About' },
     { path: '/login', title: 'Sign In' },
@@ -29,11 +32,15 @@ export function App() {
         <BrowserRouter>
             <Routes>
                 <Route element={<PublicLayout />}>
+                    <Route path="/" element={<HomePage />} />
                     {publicRoutes.map((route) => <Route key={route.path} path={route.path} element={<RoutePlaceholder title={route.title} />} />)}
                 </Route>
                 <Route path="/community" element={<CommunityRoute />} />
                 <Route element={<AuthenticatedLayout />}>
-                    {authenticatedRoutes.map((route) => <Route key={route.path} path={route.path} element={<RoutePlaceholder title={route.title} />} />)}
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/browse" element={<BrowsePage />} />
+                    <Route path="/item/:id" element={<ItemDetailsPage />} />
+                    {authenticatedRoutes.filter((route) => !['/dashboard', '/browse'].includes(route.path)).map((route) => <Route key={route.path} path={route.path} element={<RoutePlaceholder title={route.title} />} />)}
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
