@@ -1,4 +1,4 @@
-import { HelpCircle, Home, LayoutGrid, ListChecks, MessageCircle, Settings, Users, X, Heart } from 'lucide-react';
+import { HelpCircle, Home, LayoutGrid, ListChecks, MessageCircle, Settings, Users, X, Heart, Sparkles } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { IconButton } from '../ui/IconButton';
 
@@ -6,6 +6,7 @@ type AppSidebarProps = { open: boolean; onClose: () => void };
 
 const navigation = [
     { label: 'Home', to: '/dashboard', icon: Home },
+    { label: 'AI Assistant', to: '/ai-assistant', icon: Sparkles },
     { label: 'Browse', to: '/browse', icon: LayoutGrid },
     { label: 'My Requests', to: '/requests', icon: ListChecks },
     { label: 'My Listings', to: '/listings', icon: LayoutGrid },

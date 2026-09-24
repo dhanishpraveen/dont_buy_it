@@ -7,6 +7,7 @@ import { HomePage } from './pages/HomePage';
 import { DashboardPage } from './pages/DashboardPage';
 import { BrowsePage } from './pages/BrowsePage';
 import { ItemDetailsPage } from './pages/ItemDetailsPage';
+import { AIAssistantPage } from './pages/AIAssistantPage';
 
 const publicRoutes = [
     { path: '/how-it-works', title: 'How It Works' },
@@ -39,6 +40,7 @@ export function App() {
                 <Route element={<AuthenticatedLayout />}>
                     <Route path="/dashboard" element={<DashboardPage />} />
                     <Route path="/browse" element={<BrowsePage />} />
+                    <Route path="/ai-assistant" element={<AIAssistantPage />} />
                     <Route path="/item/:id" element={<ItemDetailsPage />} />
                     {authenticatedRoutes.filter((route) => !['/dashboard', '/browse'].includes(route.path)).map((route) => <Route key={route.path} path={route.path} element={<RoutePlaceholder title={route.title} />} />)}
                 </Route>
