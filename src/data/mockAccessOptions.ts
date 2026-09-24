@@ -1,0 +1,1 @@
+export { mockAccessOptions } from '../../shared/data/mockAccessOptions';
