@@ -4,14 +4,19 @@ import { useRequirement } from '../context/RequirementContext';
 import { analyzeUserNeed, type AnalyzeSource } from '../services/llmService';
 import { getAccessOptions } from '../services/resourceService';
 import { rankAccessOptions } from '../services/scoringEngine';
+import { analyzeOwnership } from '../services/ownershipAnalyzer';
+import { generateRecommendation } from '../services/recommendationEngine';
+import { generateRecommendationExplanation } from '../services/explanationService';
 import type { AccessMethod } from '../../shared/types/accessOptions';
 import type { UserRequirement } from '../../shared/types/requirements';
 import type { ScoredAccessOption } from '../../shared/types/scoring';
+import type { RecommendationExplanation, RecommendationResult } from '../../shared/types/recommendation';
 import { AccessOptionCard } from '../components/recommendation/AccessOptionCard';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Divider } from '../components/ui/Divider';
+import { RecommendationPanel } from '../components/recommendation/RecommendationPanel';
 
 const examples = [
     "I need a projector for tomorrow's college event.",
@@ -66,6 +71,8 @@ export function AIAssistantPage() {
     const [options, setOptions] = useState<ScoredAccessOption[]>([]);
     const [optionsStatus, setOptionsStatus] = useState<OptionsStatus>('idle');
     const [optionsError, setOptionsError] = useState<string | null>(null);
+    const [recommendation, setRecommendation] = useState<RecommendationResult | null>(null);
+    const [explanation, setExplanation] = useState<RecommendationExplanation | null>(null);
     const [methodFilter, setMethodFilter] = useState<AccessMethod | 'all'>('all');
     const [sort, setSort] = useState<OptionsSort>('accessScore');
 
@@ -74,15 +81,22 @@ export function AIAssistantPage() {
         const text = input.trim();
         if (!text) { setError('Tell us what you need before analyzing.'); setStatus('error'); return; }
         if (text.length > 1000) { setError('Please keep your request under 1,000 characters.'); setStatus('error'); return; }
-        setStatus('loading'); setError(null); setOptions([]); setOptionsStatus('idle');
+        setStatus('loading'); setError(null); setOptions([]); setOptionsStatus('idle'); setRecommendation(null); setExplanation(null);
         try { const result = await analyzeUserNeed(text); setRequirement(result.requirement); setSource(result.source); setStatus('success'); } catch (analysisError) { setError(analysisError instanceof Error ? analysisError.message : 'We could not understand that request. Please try again.'); setStatus('error'); }
     };
     const handleContinue = async () => {
         if (!requirement) return;
         setOptionsStatus('loading'); setOptionsError(null); setMethodFilter('all');
-        try { const retrievedOptions = await getAccessOptions(requirement); setOptions(rankAccessOptions(retrievedOptions, requirement)); setOptionsStatus('success'); } catch (retrievalError) { setOptionsError(retrievalError instanceof Error ? retrievalError.message : 'We could not retrieve access options.'); setOptionsStatus('error'); }
+        try {
+            const retrievedOptions = await getAccessOptions(requirement);
+            const rankedOptions = rankAccessOptions(retrievedOptions, requirement);
+            const ownership = analyzeOwnership(requirement, rankedOptions);
+            const result = generateRecommendation(requirement, rankedOptions, ownership);
+            setOptions(rankedOptions); setRecommendation(result); setExplanation(null); setOptionsStatus('success');
+            void generateRecommendationExplanation(result.explanationData).then(setExplanation);
+        } catch (retrievalError) { setOptionsError(retrievalError instanceof Error ? retrievalError.message : 'We could not retrieve and evaluate access options.'); setOptionsStatus('error'); }
     };
-    const handleClear = () => { setInput(''); clearRequirement(); setError(null); setSource(null); setStatus('empty'); setOptions([]); setOptionsStatus('idle'); setOptionsError(null); };
+    const handleClear = () => { setInput(''); clearRequirement(); setError(null); setSource(null); setStatus('empty'); setOptions([]); setOptionsStatus('idle'); setOptionsError(null); setRecommendation(null); setExplanation(null); };
 
     return <div className="mx-auto max-w-4xl">
         <section className="rounded-card bg-sage-soft px-6 py-8 sm:px-10 sm:py-10"><div className="flex items-start gap-4"><span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface text-sage"><Sparkles size={21} /></span><div><p className="font-handwritten text-2xl text-sage">A more thoughtful way to start</p><h1 className="mt-1 font-display text-4xl font-semibold leading-tight text-ink sm:text-5xl">AI Access Assistant</h1><p className="mt-4 max-w-2xl text-base leading-7 text-muted">Tell us what you need. We’ll figure out how you can access it.</p></div></div></section>
@@ -90,5 +104,6 @@ export function AIAssistantPage() {
         <div className="mt-8"><p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-muted">Try an example</p><div className="grid gap-3">{examples.map((example) => <button key={example} onClick={() => handleChange(example)} className="rounded-card border border-line bg-surface px-4 py-3 text-left text-sm leading-6 text-muted transition-colors hover:border-sage hover:bg-sage-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage">“{example}”</button>)}</div></div>
         {status === 'success' && requirement && source ? <RequirementResult requirement={requirement} source={source} onContinue={handleContinue} /> : null}
         <CandidateOptions options={options} status={optionsStatus} error={optionsError} methodFilter={methodFilter} sort={sort} onMethodFilterChange={setMethodFilter} onSortChange={setSort} />
+        {recommendation ? <RecommendationPanel result={recommendation} explanation={explanation} /> : null}
     </div>;
 }

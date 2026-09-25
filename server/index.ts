@@ -3,6 +3,8 @@ import express from 'express';
 import { analyzeRequirement } from './services/llm/requirementAnalyzer.js';
 import { getAccessOptions } from './services/resourceService.js';
 import type { UserRequirement } from '../shared/types/requirements.js';
+import type { ExplanationData } from '../shared/types/recommendation.js';
+import { generateExplanation } from './services/llm/explanationGenerator.js';
 
 const app = express();
 const port = 3000;
@@ -42,6 +44,19 @@ app.post('/api/resources/match', (request, response) => {
     response.json({ success: true, data: getAccessOptions(requirement) });
   } catch {
     response.status(500).json({ success: false, error: 'We could not retrieve matching access options.' });
+  }
+});
+
+app.post('/api/ai/explain', async (request, response) => {
+  const data = request.body?.data as ExplanationData | undefined;
+  if (!data || typeof data !== 'object') {
+    response.status(400).json({ success: false, error: 'Deterministic explanation data is required.' });
+    return;
+  }
+  try {
+    response.json({ success: true, data: await generateExplanation(data) });
+  } catch {
+    response.status(500).json({ success: false, error: 'We could not generate an explanation.' });
   }
 });
 
