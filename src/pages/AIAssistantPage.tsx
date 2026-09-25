@@ -2,12 +2,8 @@ import { ArrowRight, Check, Lightbulb, RotateCcw, Sparkles, BarChart3 } from 'lu
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRequirement } from '../context/RequirementContext';
+import { buildDecisionResult } from '../services/decisionService';
 import { analyzeUserNeed, type AnalyzeSource } from '../services/llmService';
-import { getAccessOptions } from '../services/resourceService';
-import { rankAccessOptions } from '../services/scoringEngine';
-import { analyzeOwnership } from '../services/ownershipAnalyzer';
-import { generateRecommendation } from '../services/recommendationEngine';
-import { generateRecommendationExplanation } from '../services/explanationService';
 import type { AccessMethod } from '../../shared/types/accessOptions';
 import type { UserRequirement } from '../../shared/types/requirements';
 import type { ScoredAccessOption } from '../../shared/types/scoring';
@@ -37,17 +33,18 @@ function RequirementRow({ label, value }: { label: string; value: string }) {
     return <div><dt className="text-xs font-bold uppercase tracking-[0.14em] text-muted">{label}</dt><dd className="mt-1 font-display text-xl font-semibold text-ink">{value}</dd></div>;
 }
 
-function RequirementResult({ requirement, source, onContinue }: { requirement: UserRequirement; source: AnalyzeSource; onContinue: () => void }) {
+function RequirementResult({ requirement, source, fallbackReason, onContinue, onEdit }: { requirement: UserRequirement; source: AnalyzeSource; fallbackReason?: string | null; onContinue: () => void; onEdit: () => void }) {
     return <Card className="mt-8 overflow-hidden">
         <div className="border-b border-line bg-sage-soft px-6 py-5 sm:px-8">
             <div className="flex items-center gap-2 text-sage"><Check size={18} /><p className="text-xs font-bold uppercase tracking-[0.18em]">Understanding your need</p></div>
             <div className="mt-2 flex flex-wrap items-center gap-3"><h2 className="font-display text-3xl font-semibold text-ink">Here is what we heard.</h2><Badge tone={source === 'gemini' ? 'sage' : 'brown'}>Source: {source === 'gemini' ? 'Gemini' : 'Fallback'}</Badge></div>
+            {source === 'fallback' && fallbackReason ? <p className="mt-3 text-sm text-muted">Fallback reason: {fallbackReason}</p> : null}
         </div>
         <div className="p-6 sm:p-8">
             <dl className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"><RequirementRow label="Item" value={titleCase(requirement.item)} /><RequirementRow label="Purpose" value={displayValue(requirement.purpose)} /><RequirementRow label="Duration" value={displayValue(requirement.duration)} /><RequirementRow label="Expected usage" value={displayValue(requirement.frequency)} /><RequirementRow label="Date" value={displayValue(requirement.date)} /><RequirementRow label="Urgency" value={titleCase(requirement.urgency)} /></dl>
             <Divider className="my-7" />
             <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">Required capabilities</p>{requirement.requiredCapabilities.length ? <ul className="mt-3 grid gap-2 sm:grid-cols-2">{requirement.requiredCapabilities.map((capability) => <li key={capability} className="flex items-start gap-2 text-sm text-ink"><Check size={16} className="mt-0.5 shrink-0 text-sage" />{capability}</li>)}</ul> : <p className="mt-3 text-sm text-muted">No specific capabilities were mentioned.</p>}</div>
-            <div className="mt-8 flex flex-wrap gap-3"><Button onClick={onContinue}>Find My Best Access Option <ArrowRight size={17} /></Button><Badge tone="sage">Requirement saved for the next step</Badge></div>
+            <div className="mt-8 flex flex-wrap gap-3"><Button onClick={onContinue}>Find My Best Access Option <ArrowRight size={17} /></Button><Button onClick={onEdit} variant="secondary">Edit Requirement</Button><Badge tone="sage">Requirement saved for the next step</Badge></div>
         </div>
     </Card>;
 }
@@ -65,11 +62,13 @@ function CandidateOptions({ options, status, error, methodFilter, sort, onMethod
 
 export function AIAssistantPage() {
     const navigate = useNavigate();
-    const { requirement, setRequirement, clearRequirement } = useRequirement();
+    const { requirement, decisionResult, setRequirement, setDecisionResult, clearRequirement } = useRequirement();
     const [input, setInput] = useState('');
     const [status, setStatus] = useState<AssistantStatus>('empty');
     const [error, setError] = useState<string | null>(null);
     const [source, setSource] = useState<AnalyzeSource | null>(null);
+    const [fallbackReason, setFallbackReason] = useState<string | null>(null);
+    const [processingStage, setProcessingStage] = useState<string>('Awaiting your request.');
     const [options, setOptions] = useState<ScoredAccessOption[]>([]);
     const [optionsStatus, setOptionsStatus] = useState<OptionsStatus>('idle');
     const [optionsError, setOptionsError] = useState<string | null>(null);
@@ -83,30 +82,36 @@ export function AIAssistantPage() {
         const text = input.trim();
         if (!text) { setError('Tell us what you need before analyzing.'); setStatus('error'); return; }
         if (text.length > 1000) { setError('Please keep your request under 1,000 characters.'); setStatus('error'); return; }
-        setStatus('loading'); setError(null); setOptions([]); setOptionsStatus('idle'); setRecommendation(null); setExplanation(null);
-        try { const result = await analyzeUserNeed(text); setRequirement(result.requirement); setSource(result.source); setStatus('success'); } catch (analysisError) { setError(analysisError instanceof Error ? analysisError.message : 'We could not understand that request. Please try again.'); setStatus('error'); }
+        setStatus('loading'); setError(null); setOptions([]); setOptionsStatus('idle'); setRecommendation(null); setExplanation(null); setDecisionResult(null); setProcessingStage('Understanding your need...');
+        try { const result = await analyzeUserNeed(text); setRequirement(result.requirement); setSource(result.source); setFallbackReason(result.fallbackReason ?? null); setStatus('success'); setProcessingStage('Requirement ready. Finding available options...'); } catch (analysisError) { setError(analysisError instanceof Error ? analysisError.message : 'We could not understand that request. Please try again.'); setStatus('error'); setProcessingStage('Unable to understand that request.'); }
     };
     const handleContinue = async () => {
         if (!requirement) return;
-        setOptionsStatus('loading'); setOptionsError(null); setMethodFilter('all');
+        setOptionsStatus('loading'); setOptionsError(null); setMethodFilter('all'); setProcessingStage('Finding available options...');
         try {
-            const retrievedOptions = await getAccessOptions(requirement);
-            const rankedOptions = rankAccessOptions(retrievedOptions, requirement);
-            const ownership = analyzeOwnership(requirement, rankedOptions);
-            const result = generateRecommendation(requirement, rankedOptions, ownership);
-            setOptions(rankedOptions); setRecommendation(result); setExplanation(null); setOptionsStatus('success');
-            void generateRecommendationExplanation(result.explanationData).then(setExplanation);
-        } catch (retrievalError) { setOptionsError(retrievalError instanceof Error ? retrievalError.message : 'We could not retrieve and evaluate access options.'); setOptionsStatus('error'); }
+            const decision = await buildDecisionResult(requirement, source ?? 'fallback', fallbackReason ?? undefined);
+            setDecisionResult(decision);
+            setOptions(decision.scoredOptions); setRecommendation(decision.recommendation); setExplanation(decision.explanation); setOptionsStatus('success'); setProcessingStage('Preparing your recommendation...');
+        } catch (retrievalError) { setOptionsError(retrievalError instanceof Error ? retrievalError.message : 'We could not retrieve and evaluate access options.'); setOptionsStatus('error'); setProcessingStage('We could not complete the decision flow.'); }
     };
-    const handleClear = () => { setInput(''); clearRequirement(); setError(null); setSource(null); setStatus('empty'); setOptions([]); setOptionsStatus('idle'); setOptionsError(null); setRecommendation(null); setExplanation(null); };
+    const handleClear = () => { setInput(''); clearRequirement(); setError(null); setSource(null); setFallbackReason(null); setStatus('empty'); setOptions([]); setOptionsStatus('idle'); setOptionsError(null); setRecommendation(null); setExplanation(null); setDecisionResult(null); setProcessingStage('Awaiting your request.'); };
+    const handleEditRequirement = () => {
+        if (!requirement) return;
+        const draft = [requirement.item, requirement.purpose, requirement.duration, requirement.frequency, requirement.date, requirement.location, requirement.budget !== null ? `Budget ${requirement.budget}` : null].filter(Boolean).join('. ');
+        setInput(draft || '');
+        setStatus('typing');
+        setError(null);
+    };
 
     return <div className="mx-auto max-w-4xl">
         <section className="rounded-card bg-sage-soft px-6 py-8 sm:px-10 sm:py-10"><div className="flex items-start gap-4"><span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface text-sage"><Sparkles size={21} /></span><div><p className="font-handwritten text-2xl text-sage">A more thoughtful way to start</p><h1 className="mt-1 font-display text-4xl font-semibold leading-tight text-ink sm:text-5xl">AI Access Assistant</h1><p className="mt-4 max-w-2xl text-base leading-7 text-muted">Tell us what you need. We’ll figure out how you can access it.</p></div></div></section>
         <Card className="mt-6 p-5 sm:p-8"><div className="flex items-center gap-2"><Lightbulb size={18} className="text-sage" /><label htmlFor="need-input" className="text-sm font-bold text-ink">What are you looking for?</label></div><textarea id="need-input" value={input} maxLength={1000} onChange={(event) => handleChange(event.target.value)} placeholder="I need a projector tomorrow for 5 hours for a college presentation..." className="mt-4 min-h-44 w-full resize-y rounded-card border border-line bg-canvas p-4 text-base leading-7 text-ink outline-none placeholder:text-muted focus:border-sage focus:ring-2 focus:ring-sage/20" aria-describedby="need-help" /><div className="mt-2 flex justify-between gap-4 text-xs text-muted"><span id="need-help">The more context you share, the better we can understand the need.</span><span className="shrink-0">{input.length}/1000</span></div><div className="mt-5 flex flex-wrap items-center gap-3"><Button onClick={handleAnalyze} disabled={status === 'loading'}>{status === 'loading' ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-surface/40 border-t-surface" />Understanding your request...</> : <>Analyze Need <ArrowRight size={17} /></>}</Button>{input ? <button onClick={handleClear} className="inline-flex h-11 items-center gap-2 rounded-control px-4 text-sm font-semibold text-muted hover:bg-sage-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage"><RotateCcw size={16} />Clear</button> : null}</div>{error ? <p className="mt-4 rounded-control bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" role="alert">{error}</p> : null}</Card>
         <div className="mt-8"><p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-muted">Try an example</p><div className="grid gap-3">{examples.map((example) => <button key={example} onClick={() => handleChange(example)} className="rounded-card border border-line bg-surface px-4 py-3 text-left text-sm leading-6 text-muted transition-colors hover:border-sage hover:bg-sage-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage">“{example}”</button>)}</div></div>
-        {status === 'success' && requirement && source ? <RequirementResult requirement={requirement} source={source} onContinue={handleContinue} /> : null}
+        {status === 'success' && requirement && source ? <RequirementResult requirement={requirement} source={source} fallbackReason={fallbackReason} onContinue={handleContinue} onEdit={handleEditRequirement} /> : null}
         {optionsStatus === 'success' || recommendation ? <div className="mt-8 flex justify-end"><Button onClick={() => navigate('/scenario-comparison')}><BarChart3 size={16} />Compare Scenarios</Button></div> : null}
+        {optionsStatus === 'loading' ? <div className="mt-6 rounded-card border border-line bg-surface px-4 py-4 text-sm text-muted">{processingStage}</div> : null}
         <CandidateOptions options={options} status={optionsStatus} error={optionsError} methodFilter={methodFilter} sort={sort} onMethodFilterChange={setMethodFilter} onSortChange={setSort} />
         {recommendation ? <RecommendationPanel result={recommendation} explanation={explanation} /> : null}
+        {decisionResult ? <div className="mt-8 hidden rounded-card border border-line bg-canvas p-4 text-xs text-muted md:block"><p className="font-bold uppercase tracking-[0.12em] text-muted">Decision debug</p><div className="mt-3 grid gap-2 sm:grid-cols-2"><div><span className="font-semibold text-ink">AI source:</span> {decisionResult.aiSource}</div><div><span className="font-semibold text-ink">Recommendation:</span> {decisionResult.recommendation.recommendationType}</div><div><span className="font-semibold text-ink">Candidate count:</span> {decisionResult.accessOptions.length}</div><div><span className="font-semibold text-ink">Ownership necessity:</span> {decisionResult.ownershipAnalysis.ownershipNecessityScore}</div></div></div> : null}
     </div>;
 }

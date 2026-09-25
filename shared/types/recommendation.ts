@@ -72,3 +72,15 @@ export type RecommendationInput = {
     recommendation: RecommendationResult;
     options: AccessOption[];
 };
+
+export type DecisionResult = {
+    requirement: UserRequirement;
+    accessOptions: AccessOption[];
+    scoredOptions: ScoredAccessOption[];
+    ownershipAnalysis: OwnershipAnalysis;
+    recommendation: RecommendationResult;
+    explanation: RecommendationExplanation | null;
+    aiSource: 'gemini' | 'fallback';
+    fallbackReason?: string;
+    createdAt: number;
+};

@@ -3,7 +3,7 @@ import type { UserRequirement } from '../../shared/types/requirements';
 export type AnalyzeSource = 'gemini' | 'fallback';
 type AnalyzeResponse = { success: true; data: UserRequirement; source: AnalyzeSource; fallbackReason?: string } | { success: false; error?: string };
 
-export async function analyzeUserNeed(userInput: string): Promise<{ requirement: UserRequirement; source: AnalyzeSource }> {
+export async function analyzeUserNeed(userInput: string): Promise<{ requirement: UserRequirement; source: AnalyzeSource; fallbackReason?: string }> {
     try {
         const response = await fetch('/api/ai/analyze', {
             method: 'POST',
@@ -19,7 +19,7 @@ export async function analyzeUserNeed(userInput: string): Promise<{ requirement:
             throw new Error(`The analysis service returned an invalid response (${response.status}).`);
         }
         if (!response.ok || !payload.success) throw new Error(payload.success ? 'We could not understand that request.' : payload.error ?? 'We could not understand that request.');
-        return { requirement: payload.data, source: payload.source };
+        return { requirement: payload.data, source: payload.source, fallbackReason: payload.fallbackReason };
     } catch (error) {
         if (error instanceof Error && error.message !== 'Failed to fetch') throw error;
         throw new Error('We could not reach the assistant. Please try again.');

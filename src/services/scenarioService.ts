@@ -3,11 +3,8 @@ import type { OwnershipAnalysis, RecommendationResult } from '../../shared/types
 import type { UserRequirement } from '../../shared/types/requirements';
 import type { Scenario, ScenarioComparisonResult, ScenarioStatus } from '../../shared/types/scenario';
 import type { ScoredAccessOption } from '../../shared/types/scoring';
+import { buildDecisionResult } from './decisionService';
 import { analyzeUserNeed } from './llmService';
-import { getAccessOptions } from './resourceService';
-import { rankAccessOptions } from './scoringEngine';
-import { analyzeOwnership } from './ownershipAnalyzer';
-import { generateRecommendation } from './recommendationEngine';
 
 export const PRESET_SCENARIOS = [
     {
@@ -48,22 +45,19 @@ export async function runScenario(scenario: Scenario): Promise<Scenario> {
     const processing: Scenario = { ...scenario, status: 'processing', error: undefined };
 
     try {
-        const { requirement } = await analyzeUserNeed(scenario.inputText);
-        if (!requirement.item) {
-            return { ...processing, requirement, status: 'error', error: 'The requirement is incomplete. Please provide a clear item and context.' };
+        const analysis = await analyzeUserNeed(scenario.inputText);
+        if (!analysis.requirement.item) {
+            return { ...processing, requirement: analysis.requirement, status: 'error', error: 'The requirement is incomplete. Please provide a clear item and context.' };
         }
 
-        const options = await getAccessOptions(requirement);
-        const scoredOptions = rankAccessOptions(options, requirement);
-        const ownershipAnalysis = analyzeOwnership(requirement, scoredOptions);
-        const recommendation = generateRecommendation(requirement, scoredOptions, ownershipAnalysis);
+        const decision = await buildDecisionResult(analysis.requirement, analysis.source, analysis.fallbackReason);
 
         return {
             ...processing,
-            requirement,
-            recommendation,
-            scoredOptions,
-            ownershipAnalysis,
+            requirement: decision.requirement,
+            recommendation: decision.recommendation,
+            scoredOptions: decision.scoredOptions,
+            ownershipAnalysis: decision.ownershipAnalysis,
             status: 'completed',
         };
     } catch (error) {
