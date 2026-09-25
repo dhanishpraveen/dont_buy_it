@@ -53,4 +53,9 @@ describe('ownership and recommendation engine', () => {
         expect(explanation).toContain('one-time');
         expect(explanation).toContain('28,000');
     });
+
+    it('returns a user-safe error when no suitable access options exist', () => {
+        const requirementForBike = requirement({ item: 'bicycle', purpose: 'daily commuting', duration: 'six months', frequency: 'regular', date: 'tomorrow' });
+        expect(() => generateRecommendation(requirementForBike, [], analyzeOwnership(requirementForBike, []))).toThrow(/No suitable access options were found/i);
+    });
 });

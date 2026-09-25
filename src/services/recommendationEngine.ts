@@ -72,8 +72,14 @@ function reasonCodes(option: ScoredAccessOption, requirement: UserRequirement, o
 }
 
 export function generateRecommendation(requirement: UserRequirement, scoredOptions: ScoredAccessOption[], ownershipAnalysis: OwnershipAnalysis): RecommendationResult {
+    if (!scoredOptions.length) {
+        throw new Error('No suitable access options were found for this requirement. Try changing the location, date, budget, or required capabilities.');
+    }
+
     const viableOptions = scoredOptions.filter((option) => option.factorScores.availability > 0 && option.factorScores.usageSuitability >= (requirement.requiredCapabilities.length ? 50 : 0));
-    if (!viableOptions.length) throw new Error('No compatible access options are available for this requirement.');
+    if (!viableOptions.length) {
+        throw new Error('No suitable access options were found for this requirement. Try changing the location, date, budget, or required capabilities.');
+    }
 
     const candidateMetrics = viableOptions.map((option) => {
         const contribution = (option.finalScore * 0.7) + (economicFit(option, viableOptions, ownershipAnalysis) * 0.3);
