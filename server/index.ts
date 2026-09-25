@@ -5,7 +5,11 @@ import { getAccessOptions } from './services/resourceService.js';
 import type { UserRequirement } from '../shared/types/requirements.js';
 
 const app = express();
-const port = Number(process.env.PORT ?? 3000);
+const port = 3000;
+
+if (process.env.PORT && Number(process.env.PORT) !== port) {
+  throw new Error('The backend must run on PORT=3000.');
+}
 
 app.use(express.json());
 
@@ -43,6 +47,15 @@ app.post('/api/resources/match', (request, response) => {
 
 app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', service: "don't-buy-it-api" });
+});
+
+app.use((error: unknown, _request: express.Request, response: express.Response, next: express.NextFunction) => {
+  if (response.headersSent) {
+    next(error);
+    return;
+  }
+  const status = error && typeof error === 'object' && 'status' in error && typeof error.status === 'number' ? error.status : 500;
+  response.status(status).json({ success: false, error: 'The API could not process that request.' });
 });
 
 app.listen(port, () => {

@@ -8,6 +8,6 @@ export type UserRequirement = {
     date: string | null;
     location: string | null;
     urgency: RequirementUrgency;
-    budget: string | null;
+    budget: number | null;
     requiredCapabilities: string[];
 };
