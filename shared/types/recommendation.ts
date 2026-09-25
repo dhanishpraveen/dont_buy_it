@@ -34,6 +34,16 @@ export type ExplanationData = {
     usage: { duration: string | null; frequency: string | null; expectedUses: number };
 };
 
+export type RecommendationCandidateDebug = {
+    optionId: string;
+    accessMethod: AccessMethod;
+    accessScore: number;
+    totalCost: number | null;
+    ownershipCostPerUse: number | null;
+    ownershipNecessityScore: number;
+    recommendationContribution: number;
+};
+
 export type RecommendationResult = {
     recommendedOption: ScoredAccessOption;
     recommendationType: AccessMethod;
@@ -45,6 +55,11 @@ export type RecommendationResult = {
     explanationData: ExplanationData;
     rankedOptions: ScoredAccessOption[];
     requirement: UserRequirement;
+    debugInfo?: {
+        expectedUses: number;
+        ownershipNecessityScore: number;
+        candidates: RecommendationCandidateDebug[];
+    };
 };
 
 export type RecommendationExplanation = {

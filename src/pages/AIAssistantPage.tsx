@@ -1,5 +1,6 @@
-import { ArrowRight, Check, Lightbulb, RotateCcw, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, Lightbulb, RotateCcw, Sparkles, BarChart3 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useRequirement } from '../context/RequirementContext';
 import { analyzeUserNeed, type AnalyzeSource } from '../services/llmService';
 import { getAccessOptions } from '../services/resourceService';
@@ -63,6 +64,7 @@ function CandidateOptions({ options, status, error, methodFilter, sort, onMethod
 }
 
 export function AIAssistantPage() {
+    const navigate = useNavigate();
     const { requirement, setRequirement, clearRequirement } = useRequirement();
     const [input, setInput] = useState('');
     const [status, setStatus] = useState<AssistantStatus>('empty');
@@ -103,6 +105,7 @@ export function AIAssistantPage() {
         <Card className="mt-6 p-5 sm:p-8"><div className="flex items-center gap-2"><Lightbulb size={18} className="text-sage" /><label htmlFor="need-input" className="text-sm font-bold text-ink">What are you looking for?</label></div><textarea id="need-input" value={input} maxLength={1000} onChange={(event) => handleChange(event.target.value)} placeholder="I need a projector tomorrow for 5 hours for a college presentation..." className="mt-4 min-h-44 w-full resize-y rounded-card border border-line bg-canvas p-4 text-base leading-7 text-ink outline-none placeholder:text-muted focus:border-sage focus:ring-2 focus:ring-sage/20" aria-describedby="need-help" /><div className="mt-2 flex justify-between gap-4 text-xs text-muted"><span id="need-help">The more context you share, the better we can understand the need.</span><span className="shrink-0">{input.length}/1000</span></div><div className="mt-5 flex flex-wrap items-center gap-3"><Button onClick={handleAnalyze} disabled={status === 'loading'}>{status === 'loading' ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-surface/40 border-t-surface" />Understanding your request...</> : <>Analyze Need <ArrowRight size={17} /></>}</Button>{input ? <button onClick={handleClear} className="inline-flex h-11 items-center gap-2 rounded-control px-4 text-sm font-semibold text-muted hover:bg-sage-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage"><RotateCcw size={16} />Clear</button> : null}</div>{error ? <p className="mt-4 rounded-control bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" role="alert">{error}</p> : null}</Card>
         <div className="mt-8"><p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-muted">Try an example</p><div className="grid gap-3">{examples.map((example) => <button key={example} onClick={() => handleChange(example)} className="rounded-card border border-line bg-surface px-4 py-3 text-left text-sm leading-6 text-muted transition-colors hover:border-sage hover:bg-sage-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage">“{example}”</button>)}</div></div>
         {status === 'success' && requirement && source ? <RequirementResult requirement={requirement} source={source} onContinue={handleContinue} /> : null}
+        {optionsStatus === 'success' || recommendation ? <div className="mt-8 flex justify-end"><Button onClick={() => navigate('/scenario-comparison')}><BarChart3 size={16} />Compare Scenarios</Button></div> : null}
         <CandidateOptions options={options} status={optionsStatus} error={optionsError} methodFilter={methodFilter} sort={sort} onMethodFilterChange={setMethodFilter} onSortChange={setSort} />
         {recommendation ? <RecommendationPanel result={recommendation} explanation={explanation} /> : null}
     </div>;

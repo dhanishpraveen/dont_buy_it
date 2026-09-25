@@ -1,7 +1,7 @@
 import type { UserRequirement } from '../../shared/types/requirements';
 
 export type AnalyzeSource = 'gemini' | 'fallback';
-type AnalyzeResponse = { success: true; data: UserRequirement; source: AnalyzeSource } | { success: false; error?: string };
+type AnalyzeResponse = { success: true; data: UserRequirement; source: AnalyzeSource; fallbackReason?: string } | { success: false; error?: string };
 
 export async function analyzeUserNeed(userInput: string): Promise<{ requirement: UserRequirement; source: AnalyzeSource }> {
     try {

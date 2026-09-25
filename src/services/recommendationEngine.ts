@@ -10,13 +10,41 @@ function comparisonCost(method: AccessMethod, ownership: OwnershipAnalysis): num
     return ownership.comparison.find((comparison) => comparison.accessMethod === method)?.totalCost ?? null;
 }
 
+function ownershipEconomicsScore(option: ScoredAccessOption, ownership: OwnershipAnalysis): number {
+    const necessity = ownership.ownershipNecessityScore;
+    const expectedUses = ownership.expectedUses;
+    const selectedComparison = ownership.comparison.find((comparison) => comparison.accessMethod === option.accessMethod);
+    const selectedCostPerUse = selectedComparison?.costPerUse ?? null;
+    const rentPerUse = ownership.estimatedRentalCost !== null && expectedUses > 0 ? ownership.estimatedRentalCost / expectedUses : null;
+    const ownershipPerUse = ownership.ownershipCostPerUse ?? null;
+    const ownershipIsPreferable = ownershipPerUse !== null && rentPerUse !== null && ownershipPerUse <= rentPerUse;
+
+    if (option.accessMethod === 'borrow') {
+        const repeatedUsePenalty = expectedUses > 2 ? Math.min(40, (expectedUses - 2) * 2.5) : 0;
+        const availabilityPenalty = option.factorScores.availability < 80 ? 15 : 0;
+        return clamp(100 - necessity * 0.5 - repeatedUsePenalty - availabilityPenalty);
+    }
+
+    if (option.accessMethod === 'rent') {
+        const partialUsageScore = clamp(60 + (100 - necessity) * 0.45 + (option.factorScores.availability > 85 ? 10 : 0));
+        const longTermPenalty = Math.max(0, expectedUses - 12) * 1.5;
+        return clamp(partialUsageScore - longTermPenalty);
+    }
+
+    const buyPreference = clamp(necessity * 0.8 + (expectedUses > 2 ? 15 : 0) + (ownershipIsPreferable ? 15 : 0));
+    const costPenalty = selectedCostPerUse !== null && rentPerUse !== null && selectedCostPerUse > rentPerUse * 1.5 ? 15 : 0;
+    return clamp(buyPreference - costPenalty);
+}
+
 function economicFit(option: ScoredAccessOption, options: ScoredAccessOption[], ownership: OwnershipAnalysis): number {
-    const costs = options.map((candidate) => comparisonCost(candidate.accessMethod, ownership)).filter((cost): cost is number => cost !== null);
+    const baseline = ownershipEconomicsScore(option, ownership);
     const selectedCost = comparisonCost(option.accessMethod, ownership);
-    if (selectedCost === null || !costs.length) return 50;
+    const costs = options.map((candidate) => comparisonCost(candidate.accessMethod, ownership)).filter((cost): cost is number => cost !== null);
+    if (selectedCost === null || !costs.length) return baseline;
     const minimum = Math.min(...costs);
     const maximum = Math.max(...costs);
-    return maximum === minimum ? 100 : clamp(((maximum - selectedCost) / (maximum - minimum)) * 100);
+    const costFit = maximum === minimum ? 100 : clamp(((maximum - selectedCost) / (maximum - minimum)) * 100);
+    return clamp((baseline * 0.7) + (costFit * 0.3));
 }
 
 function reasonCodes(option: ScoredAccessOption, requirement: UserRequirement, ownership: OwnershipAnalysis): RecommendationReasonCode[] {
@@ -46,19 +74,34 @@ function reasonCodes(option: ScoredAccessOption, requirement: UserRequirement, o
 export function generateRecommendation(requirement: UserRequirement, scoredOptions: ScoredAccessOption[], ownershipAnalysis: OwnershipAnalysis): RecommendationResult {
     const viableOptions = scoredOptions.filter((option) => option.factorScores.availability > 0 && option.factorScores.usageSuitability >= (requirement.requiredCapabilities.length ? 50 : 0));
     if (!viableOptions.length) throw new Error('No compatible access options are available for this requirement.');
+
+    const candidateMetrics = viableOptions.map((option) => {
+        const contribution = (option.finalScore * 0.7) + (economicFit(option, viableOptions, ownershipAnalysis) * 0.3);
+        return {
+            optionId: option.id,
+            accessMethod: option.accessMethod,
+            accessScore: option.finalScore,
+            totalCost: comparisonCost(option.accessMethod, ownershipAnalysis),
+            ownershipCostPerUse: ownershipAnalysis.comparison.find((comparison) => comparison.accessMethod === option.accessMethod)?.costPerUse ?? null,
+            ownershipNecessityScore: ownershipAnalysis.ownershipNecessityScore,
+            recommendationContribution: clamp(contribution),
+        };
+    });
+
     const ranked = [...viableOptions].sort((left, right) => {
-        const leftFit = left.finalScore * 0.8 + economicFit(left, viableOptions, ownershipAnalysis) * 0.2;
-        const rightFit = right.finalScore * 0.8 + economicFit(right, viableOptions, ownershipAnalysis) * 0.2;
+        const leftFit = candidateMetrics.find((candidate) => candidate.optionId === left.id)?.recommendationContribution ?? 0;
+        const rightFit = candidateMetrics.find((candidate) => candidate.optionId === right.id)?.recommendationContribution ?? 0;
         return rightFit - leftFit || right.finalScore - left.finalScore || left.id.localeCompare(right.id);
     });
+
     const recommendedOption = ranked[0];
     const reasons = reasonCodes(recommendedOption, requirement, ownershipAnalysis);
     const selectedCost = comparisonCost(recommendedOption.accessMethod, ownershipAnalysis);
     const newPurchaseCost = comparisonCost('buy-new', ownershipAnalysis);
     const estimatedSavings = newPurchaseCost !== null && selectedCost !== null && newPurchaseCost > selectedCost ? newPurchaseCost - selectedCost : null;
-    const confidence = clamp(recommendedOption.finalScore * 0.75 + recommendedOption.factorScores.usageSuitability * 0.15 + recommendedOption.factorScores.availability * 0.1);
+    const confidence = clamp(recommendedOption.finalScore * 0.75 + recommendedOption.factorScores.usageSuitability * 0.15 + recommendedOption.factorScores.availability * 0.1 + Math.max(0, ownershipAnalysis.ownershipNecessityScore - 50) * 0.1);
     const explanationData: ExplanationData = { item: requirement.item, purpose: requirement.purpose, recommendationType: recommendedOption.accessMethod, accessScore: recommendedOption.finalScore, estimatedSavings, reasonCodes: reasons, usage: { duration: requirement.duration, frequency: requirement.frequency, expectedUses: ownershipAnalysis.expectedUses } };
-    return { recommendedOption, recommendationType: recommendedOption.accessMethod, confidence, reasonCodes: reasons, estimatedSavings, accessScore: recommendedOption.finalScore, ownershipComparison: ownershipAnalysis, explanationData, rankedOptions: scoredOptions, requirement };
+    return { recommendedOption, recommendationType: recommendedOption.accessMethod, confidence, reasonCodes: reasons, estimatedSavings, accessScore: recommendedOption.finalScore, ownershipComparison: ownershipAnalysis, explanationData, rankedOptions: scoredOptions, requirement, debugInfo: { expectedUses: ownershipAnalysis.expectedUses, ownershipNecessityScore: ownershipAnalysis.ownershipNecessityScore, candidates: candidateMetrics } };
 }
 
 export function recommendationMethods(): AccessMethod[] {

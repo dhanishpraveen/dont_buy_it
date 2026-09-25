@@ -2,6 +2,8 @@ import { GoogleGenAI } from '@google/genai';
 import type { RequirementUrgency, UserRequirement } from '../../../shared/types/requirements.js';
 import { requirementExtractionPrompt } from './requirementPrompt.js';
 
+const defaultGeminiModel = 'gemini-3.8-flash';
+
 const requirementJsonSchema = {
     type: 'object',
     properties: {
@@ -97,11 +99,27 @@ function fallbackRequirement(text: string): UserRequirement {
     return { ...fallback, purpose, duration, frequency, date, location, budget, requiredCapabilities: capabilities };
 }
 
+function errorDetails(error: unknown): Record<string, unknown> {
+    if (error && typeof error === 'object') {
+        const record = error as Record<string, unknown>;
+        const nested = record.error && typeof record.error === 'object' ? record.error as Record<string, unknown> : null;
+        return {
+            message: error instanceof Error ? error.message : typeof error === 'string' ? error : 'unknown error',
+            name: record.name ?? nested?.name,
+            code: record.code ?? nested?.code,
+            status: record.status ?? nested?.status,
+            details: record.details ?? nested?.details,
+        };
+    }
+    return { message: typeof error === 'string' ? error : 'unknown error' };
+}
+
 async function requestGemini(text: string, apiKey: string): Promise<UserRequirement> {
+    const modelName = process.env.GEMINI_MODEL?.trim() || defaultGeminiModel;
     console.log('[AI] Gemini call started');
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-        model: process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash',
+        model: modelName,
         contents: text,
         config: { systemInstruction: requirementExtractionPrompt, responseMimeType: 'application/json', responseJsonSchema: requirementJsonSchema, temperature: 0.1 },
     });
@@ -115,22 +133,29 @@ async function requestGemini(text: string, apiKey: string): Promise<UserRequirem
     return requirement;
 }
 
-export async function analyzeRequirement(text: string): Promise<{ requirement: UserRequirement; source: 'gemini' | 'fallback' }> {
+export async function analyzeRequirement(text: string): Promise<{ requirement: UserRequirement; source: 'gemini' | 'fallback'; fallbackReason?: string }> {
     console.log('[AI] Request received');
     const apiKey = process.env.GEMINI_API_KEY?.trim();
+    const modelName = process.env.GEMINI_MODEL?.trim() || defaultGeminiModel;
     if (apiKey) {
         try {
             const requirement = await requestGemini(text, apiKey);
             console.log('[AI] Source: gemini');
             return { requirement, source: 'gemini' };
         } catch (error) {
-            console.warn('[AI] Gemini failed', error instanceof Error ? error.message : 'unknown error');
+            const details = errorDetails(error);
+            console.error('[AI] Gemini failed', { model: modelName, ...details });
+            const fallbackReason = typeof details.message === 'string' ? details.message : 'Gemini request failed';
+            console.log('[AI] Falling back to deterministic extraction');
+            const requirement = fallbackRequirement(text);
+            console.log('[AI] Source: fallback');
+            return { requirement, source: 'fallback', fallbackReason };
         }
-    } else {
-        console.warn('[AI] Gemini failed: GEMINI_API_KEY is not configured');
     }
+    const fallbackReason = 'GEMINI_API_KEY is not configured';
+    console.warn('[AI] Gemini failed:', fallbackReason);
     console.log('[AI] Falling back to deterministic extraction');
     const requirement = fallbackRequirement(text);
     console.log('[AI] Source: fallback');
-    return { requirement, source: 'fallback' };
+    return { requirement, source: 'fallback', fallbackReason };
 }

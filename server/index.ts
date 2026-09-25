@@ -28,7 +28,7 @@ app.post('/api/ai/analyze', async (request, response) => {
 
   try {
     const result = await analyzeRequirement(text);
-    response.json({ success: true, data: result.requirement, source: result.source });
+    response.json({ success: true, data: result.requirement, source: result.source, fallbackReason: result.fallbackReason });
   } catch {
     response.status(500).json({ success: false, error: 'We could not understand that request. Please try again.' });
   }

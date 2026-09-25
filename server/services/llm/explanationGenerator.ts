@@ -40,15 +40,18 @@ export function deterministicExplanation(data: ExplanationData): string {
 export async function generateExplanation(data: ExplanationData): Promise<RecommendationExplanation> {
     const fallback = deterministicExplanation(data);
     const apiKey = process.env.GEMINI_API_KEY?.trim();
+    const defaultModel = 'gemini-3.8-flash';
+    const modelName = process.env.GEMINI_MODEL?.trim() || defaultModel;
     if (!apiKey) return { explanation: fallback, source: 'fallback' };
     try {
         const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({ model: process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash', contents: JSON.stringify(data), config: { systemInstruction: explanationPrompt, temperature: 0.2 } });
+        const response = await ai.models.generateContent({ model: modelName, contents: JSON.stringify(data), config: { systemInstruction: explanationPrompt, temperature: 0.2 } });
         const explanation = response.text?.trim();
         if (!explanation) throw new Error('Gemini returned an empty explanation');
         return { explanation, source: 'gemini' };
     } catch (error) {
-        console.warn('[AI] Explanation failed; using deterministic explanation.', error instanceof Error ? error.message : 'unknown error');
+        const message = error instanceof Error ? error.message : typeof error === 'string' ? error : 'unknown error';
+        console.error('[AI] Explanation failed; using deterministic explanation.', { model: modelName, message });
         return { explanation: fallback, source: 'fallback' };
     }
 }
