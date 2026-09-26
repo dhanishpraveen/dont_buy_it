@@ -1,6 +1,7 @@
 import { ChevronDown, MapPin } from 'lucide-react';
 import { Link, NavLink } from 'react-router-dom';
 import { Button } from '../ui/Button';
+import { useAuth } from '../../context/AuthContext';
 
 const links = [
     { label: 'Home', to: '/' },
@@ -10,6 +11,7 @@ const links = [
 ];
 
 export function PublicNavbar() {
+    const { user } = useAuth();
     return (
         <header className="border-b border-line bg-canvas/95">
             <nav className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-8 px-6 lg:px-10" aria-label="Public navigation">
@@ -29,12 +31,10 @@ export function PublicNavbar() {
                         <span>Chennai, India</span>
                         <ChevronDown size={14} aria-hidden="true" />
                     </button>
-                    <Link to="/login" className="px-3 py-2 text-sm font-semibold text-ink hover:text-bark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage">Sign In</Link>
-                    <Link to="/signup"><Button className="h-10 px-4">Sign Up</Button></Link>
+                    {user ? <Link to="/dashboard"><Button className="h-10 px-4">Open workspace</Button></Link> : <><Link to="/login" className="px-3 py-2 text-sm font-semibold text-ink hover:text-bark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage">Sign In</Link><Link to="/signup"><Button className="h-10 px-4">Sign Up</Button></Link></>}
                 </div>
                 <div className="flex items-center gap-2 md:hidden">
-                    <Link to="/login" className="text-sm font-semibold text-ink">Sign In</Link>
-                    <Link to="/signup"><Button className="h-10 px-3">Sign Up</Button></Link>
+                    {user ? <Link to="/dashboard"><Button className="h-10 px-3">Workspace</Button></Link> : <><Link to="/login" className="text-sm font-semibold text-ink">Sign In</Link><Link to="/signup"><Button className="h-10 px-3">Sign Up</Button></Link></>}
                 </div>
             </nav>
             <div className="flex gap-5 overflow-x-auto border-t border-line px-6 py-3 lg:hidden">

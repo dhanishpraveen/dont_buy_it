@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import { connectToDatabase, getDatabaseMode } from './config/database.js';
+import { attachUser } from './middleware/auth.js';
+import { authRouter } from './routes/auth.js';
 import { analyzeRequirement } from './services/llm/requirementAnalyzer.js';
 import { getAccessOptionsForRequest, getAllMockAccessOptions } from './services/resourceService.js';
 import { findResourceById, listResources } from './repositories/resourceRepository.js';
@@ -16,6 +18,8 @@ if (process.env.PORT && Number(process.env.PORT) !== port) {
 }
 
 app.use(express.json());
+app.use(attachUser);
+app.use('/api/auth', authRouter);
 
 app.post('/api/ai/analyze', async (request, response) => {
   const text = typeof request.body?.text === 'string' ? request.body.text.trim() : '';

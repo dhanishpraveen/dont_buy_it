@@ -42,6 +42,8 @@ AccessOption -> deterministic scoring -> ownership -> recommendation
 
 The scoring, ownership, recommendation, Gemini, and frontend contracts are unchanged. MongoDB only replaces the resource data source when explicitly enabled.
 
+Authentication is implemented with bcrypt password hashes and HTTP-only JWT cookies. User passwords and hashes are never returned by the API. In mock mode, auth data is held in memory for local demos; Mongo mode persists users in the `users` collection.
+
 ## Seed data
 
 With MongoDB running and `.env` configured:

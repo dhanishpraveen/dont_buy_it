@@ -38,6 +38,7 @@ export function AppSidebar({ open, onClose }: AppSidebarProps) {
                     <div className="my-6 h-px bg-line" />
                     <p className="px-3 text-[11px] font-bold uppercase tracking-[0.18em] text-muted">Account</p>
                     <div className="mt-3 grid gap-1">
+                        <NavLink to="/profile" onClick={onClose} className={({ isActive }) => `flex h-11 items-center gap-3 rounded-control px-3 text-sm font-semibold transition-colors ${isActive ? 'bg-sage-soft text-sage' : 'text-muted hover:bg-canvas hover:text-ink'}`}><Settings size={18} strokeWidth={1.8} aria-hidden="true" />Profile</NavLink>
                         <NavLink to="/settings" onClick={onClose} className={({ isActive }) => `flex h-11 items-center gap-3 rounded-control px-3 text-sm font-semibold transition-colors ${isActive ? 'bg-sage-soft text-sage' : 'text-muted hover:bg-canvas hover:text-ink'}`}><Settings size={18} strokeWidth={1.8} aria-hidden="true" />Settings</NavLink>
                         <NavLink to="/help" onClick={onClose} className={({ isActive }) => `flex h-11 items-center gap-3 rounded-control px-3 text-sm font-semibold transition-colors ${isActive ? 'bg-sage-soft text-sage' : 'text-muted hover:bg-canvas hover:text-ink'}`}><HelpCircle size={18} strokeWidth={1.8} aria-hidden="true" />Help &amp; Support</NavLink>
                     </div>
