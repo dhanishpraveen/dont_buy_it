@@ -112,6 +112,5 @@ export function AIAssistantPage() {
         {optionsStatus === 'loading' ? <div className="mt-6 rounded-card border border-line bg-surface px-4 py-4 text-sm text-muted">{processingStage}</div> : null}
         <CandidateOptions options={options} status={optionsStatus} error={optionsError} methodFilter={methodFilter} sort={sort} onMethodFilterChange={setMethodFilter} onSortChange={setSort} />
         {recommendation ? <RecommendationPanel result={recommendation} explanation={explanation} /> : null}
-        {decisionResult ? <div className="mt-8 hidden rounded-card border border-line bg-canvas p-4 text-xs text-muted md:block"><p className="font-bold uppercase tracking-[0.12em] text-muted">Decision debug</p><div className="mt-3 grid gap-2 sm:grid-cols-2"><div><span className="font-semibold text-ink">AI source:</span> {decisionResult.aiSource}</div><div><span className="font-semibold text-ink">Recommendation:</span> {decisionResult.recommendation.recommendationType}</div><div><span className="font-semibold text-ink">Candidate count:</span> {decisionResult.accessOptions.length}</div><div><span className="font-semibold text-ink">Ownership necessity:</span> {decisionResult.ownershipAnalysis.ownershipNecessityScore}</div></div></div> : null}
     </div>;
 }

@@ -1,6 +1,8 @@
 import type { AccessOption } from '../../shared/types/accessOptions.js';
 import type { UserRequirement } from '../../shared/types/requirements.js';
 import { mockAccessOptions } from '../../shared/data/mockAccessOptions.js';
+import { getDatabaseMode } from '../config/database.js';
+import { findMatchingResources } from '../repositories/resourceRepository.js';
 
 const itemAliases: Record<string, string[]> = {
     projector: ['projector', 'presentation', 'display'],
@@ -47,4 +49,13 @@ function matchesDate(option: AccessOption, date: string | null): boolean {
 export function getAccessOptions(requirement: UserRequirement): AccessOption[] {
     if (!requirement.item?.trim()) return [];
     return mockAccessOptions.filter((option) => option.availability !== 'unavailable' && matchesItem(option, requirement.item ?? '') && matchesCapabilities(option, requirement.requiredCapabilities) && matchesLocation(option, requirement.location) && matchesDate(option, requirement.date));
+}
+
+export async function getAccessOptionsForRequest(requirement: UserRequirement): Promise<AccessOption[]> {
+    if (getDatabaseMode() === 'mongo') return findMatchingResources(requirement);
+    return getAccessOptions(requirement);
+}
+
+export function getAllMockAccessOptions(): AccessOption[] {
+    return mockAccessOptions.filter((option) => option.availability !== 'unavailable');
 }

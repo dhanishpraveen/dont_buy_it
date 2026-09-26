@@ -40,7 +40,7 @@ export function deterministicExplanation(data: ExplanationData): string {
 export async function generateExplanation(data: ExplanationData): Promise<RecommendationExplanation> {
     const fallback = deterministicExplanation(data);
     const apiKey = process.env.GEMINI_API_KEY?.trim();
-    const defaultModel = 'gemini-3.8-flash';
+    const defaultModel = 'gemini-3.6-flash';
     const modelName = process.env.GEMINI_MODEL?.trim() || defaultModel;
     if (!apiKey) return { explanation: fallback, source: 'fallback' };
     try {

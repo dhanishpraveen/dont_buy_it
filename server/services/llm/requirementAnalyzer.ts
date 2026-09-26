@@ -2,7 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 import type { RequirementUrgency, UserRequirement } from '../../../shared/types/requirements.js';
 import { requirementExtractionPrompt } from './requirementPrompt.js';
 
-const defaultGeminiModel = 'gemini-3.8-flash';
+const defaultGeminiModel = 'gemini-3.6-flash';
 
 const requirementJsonSchema = {
     type: 'object',
@@ -114,48 +114,51 @@ function errorDetails(error: unknown): Record<string, unknown> {
     return { message: typeof error === 'string' ? error : 'unknown error' };
 }
 
+function fallbackReasonFrom(error: unknown): string {
+    const details = errorDetails(error);
+    const rawMessage = typeof details.message === 'string' ? details.message : 'Gemini request failed';
+    try {
+        const parsed = JSON.parse(rawMessage) as { error?: { code?: number; message?: string } };
+        const apiError = parsed.error;
+        if (apiError?.code === 429) return 'Gemini quota is temporarily exhausted. Using fallback requirement analysis.';
+        if (apiError?.message) return `Gemini request failed: ${apiError.message}`;
+    } catch {
+        // Keep non-JSON SDK errors readable below.
+    }
+    return rawMessage.length > 240 ? `${rawMessage.slice(0, 237)}...` : rawMessage;
+}
+
 async function requestGemini(text: string, apiKey: string): Promise<UserRequirement> {
     const modelName = process.env.GEMINI_MODEL?.trim() || defaultGeminiModel;
-    console.log('[AI] Gemini call started');
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
         model: modelName,
         contents: text,
         config: { systemInstruction: requirementExtractionPrompt, responseMimeType: 'application/json', responseJsonSchema: requirementJsonSchema, temperature: 0.1 },
     });
-    console.log('[AI] Gemini response received');
     const responseText = response.text?.trim();
     if (!responseText) throw new Error('Gemini returned an empty response');
     const parsed: unknown = JSON.parse(responseText);
     if (!hasRequiredShape(parsed)) throw new Error('Gemini returned an incomplete requirement');
     const requirement = normalizeRequirement(parsed);
-    console.log('[AI] Gemini extraction validated');
     return requirement;
 }
 
 export async function analyzeRequirement(text: string): Promise<{ requirement: UserRequirement; source: 'gemini' | 'fallback'; fallbackReason?: string }> {
-    console.log('[AI] Request received');
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     const modelName = process.env.GEMINI_MODEL?.trim() || defaultGeminiModel;
     if (apiKey) {
         try {
             const requirement = await requestGemini(text, apiKey);
-            console.log('[AI] Source: gemini');
             return { requirement, source: 'gemini' };
         } catch (error) {
             const details = errorDetails(error);
             console.error('[AI] Gemini failed', { model: modelName, ...details });
-            const fallbackReason = typeof details.message === 'string' ? details.message : 'Gemini request failed';
-            console.log('[AI] Falling back to deterministic extraction');
-            const requirement = fallbackRequirement(text);
-            console.log('[AI] Source: fallback');
-            return { requirement, source: 'fallback', fallbackReason };
+            const fallbackReason = fallbackReasonFrom(error);
+            return { requirement: fallbackRequirement(text), source: 'fallback', fallbackReason };
         }
     }
     const fallbackReason = 'GEMINI_API_KEY is not configured';
     console.warn('[AI] Gemini failed:', fallbackReason);
-    console.log('[AI] Falling back to deterministic extraction');
-    const requirement = fallbackRequirement(text);
-    console.log('[AI] Source: fallback');
-    return { requirement, source: 'fallback', fallbackReason };
+    return { requirement: fallbackRequirement(text), source: 'fallback', fallbackReason };
 }
