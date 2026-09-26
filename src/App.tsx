@@ -12,6 +12,9 @@ import { ScenarioComparisonPage } from './pages/ScenarioComparisonPage';
 import { AuthPage } from './pages/AuthPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ProtectedRoute } from './components/navigation/ProtectedRoute';
+import { AddItemPage } from './pages/AddItemPage';
+import { MyListingsPage } from './pages/MyListingsPage';
+import { ListingDetailsPage } from './pages/ListingDetailsPage';
 
 const authenticatedRoutes = [
     { path: '/dashboard', title: 'Dashboard' },
@@ -44,7 +47,11 @@ export function App() {
                     <Route path="/scenario-comparison" element={<ScenarioComparisonPage />} />
                     <Route path="/item/:id" element={<ItemDetailsPage />} />
                     <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-                    {authenticatedRoutes.filter((route) => !['/dashboard', '/browse'].includes(route.path)).map((route) => <Route key={route.path} path={route.path} element={<ProtectedRoute><RoutePlaceholder title={route.title} /></ProtectedRoute>} />)}
+                    <Route path="/add-item" element={<ProtectedRoute><AddItemPage /></ProtectedRoute>} />
+                    <Route path="/listings" element={<ProtectedRoute><MyListingsPage /></ProtectedRoute>} />
+                    <Route path="/listings/:id/edit" element={<ProtectedRoute><AddItemPage /></ProtectedRoute>} />
+                    <Route path="/listing/:id" element={<ListingDetailsPage />} />
+                    {authenticatedRoutes.filter((route) => !['/dashboard', '/browse', '/listings'].includes(route.path)).map((route) => <Route key={route.path} path={route.path} element={<ProtectedRoute><RoutePlaceholder title={route.title} /></ProtectedRoute>} />)}
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
