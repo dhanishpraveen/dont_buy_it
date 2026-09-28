@@ -55,7 +55,7 @@ export function getAccessOptions(requirement: UserRequirement): AccessOption[] {
 export async function getAccessOptionsForRequest(requirement: UserRequirement): Promise<AccessOption[]> {
     if (getDatabaseMode() === 'mongo') return findMatchingResources(requirement);
     const demoOptions = getAccessOptions(requirement);
-    const userOptions = (await listPublishedListings()).map(listingToAccessOption).filter((option) => option.availability !== 'unavailable' && matchesItem(option, requirement.item ?? '') && matchesCapabilities(option, requirement.requiredCapabilities) && matchesLocation(option, requirement.location) && matchesDate(option, requirement.date));
+    const userOptions = (await listPublishedListings()).map((listing) => listingToAccessOption(listing, requirement.locationCoordinates ?? undefined)).filter((option) => option.availability !== 'unavailable' && matchesItem(option, requirement.item ?? '') && matchesCapabilities(option, requirement.requiredCapabilities) && matchesLocation(option, requirement.location) && matchesDate(option, requirement.date));
     return [...demoOptions, ...userOptions];
 }
 

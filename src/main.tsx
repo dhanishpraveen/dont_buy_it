@@ -4,9 +4,10 @@ import './styles/index.css';
 import { App } from './App';
 import { AuthProvider } from './context/AuthContext';
 import { RequirementProvider } from './context/RequirementContext';
+import { LocationProvider } from './context/LocationContext';
 
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
-        <AuthProvider><RequirementProvider><App /></RequirementProvider></AuthProvider>
+        <AuthProvider><LocationProvider><RequirementProvider><App /></RequirementProvider></LocationProvider></AuthProvider>
     </StrictMode>,
 );

@@ -13,6 +13,10 @@ const listingSchema = new Schema({
     availableFrom: { type: String, default: null },
     availableUntil: { type: String, default: null },
     location: { type: String, required: true, trim: true },
+    locationPoint: {
+        type: { type: String, enum: ['Point'] },
+        coordinates: { type: [Number] },
+    },
     distanceKm: { type: Number, required: true, min: 0 },
     condition: { type: String, required: true, trim: true },
     conditionScore: { type: Number, required: true, min: 0, max: 100 },
@@ -24,5 +28,6 @@ const listingSchema = new Schema({
 }, { timestamps: true });
 
 listingSchema.index({ accessType: 1, availability: 1, status: 1 });
+listingSchema.index({ locationPoint: '2dsphere' });
 
 export const ListingModel = models.Listing || model('Listing', listingSchema);

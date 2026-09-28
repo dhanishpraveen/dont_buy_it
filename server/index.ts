@@ -6,7 +6,8 @@ import { authRouter } from './routes/auth.js';
 import { listingsRouter, myListingsRouter } from './routes/listings.js';
 import { analyzeRequirement } from './services/llm/requirementAnalyzer.js';
 import { getAccessOptionsForRequest, getAllMockAccessOptions } from './services/resourceService.js';
-import { findResourceById, listResources } from './repositories/resourceRepository.js';
+import { findNearbyResources, findResourceById, listResources } from './repositories/resourceRepository.js';
+import { validateCoordinates, validateRadius } from './services/locationService.js';
 import type { UserRequirement } from '../shared/types/requirements.js';
 import type { ExplanationData } from '../shared/types/recommendation.js';
 import { generateExplanation } from './services/llm/explanationGenerator.js';
@@ -44,7 +45,8 @@ app.post('/api/ai/analyze', async (request, response) => {
 });
 
 app.post('/api/resources/match', async (request, response) => {
-  const requirement = request.body?.requirement as UserRequirement | undefined;
+  const rawRequirement = request.body?.requirement as UserRequirement | undefined;
+  const requirement = rawRequirement ? { ...rawRequirement, locationCoordinates: rawRequirement.locationCoordinates ? validateCoordinates(rawRequirement.locationCoordinates) : null } : undefined;
   if (!requirement || typeof requirement !== 'object') {
     response.status(400).json({ success: false, error: 'A structured requirement is required.' });
     return;
@@ -53,6 +55,23 @@ app.post('/api/resources/match', async (request, response) => {
     response.json({ success: true, data: await getAccessOptionsForRequest(requirement) });
   } catch {
     response.status(500).json({ success: false, error: 'We could not retrieve matching access options.' });
+  }
+});
+
+app.get('/api/resources/nearby', async (request, response) => {
+  try {
+    const location = validateCoordinates({ latitude: request.query.latitude, longitude: request.query.longitude });
+    const radiusKm = validateRadius(request.query.radius);
+    const limitValue = request.query.limit === undefined ? 50 : Number(request.query.limit);
+    if (!Number.isInteger(limitValue) || limitValue < 1 || limitValue > 100) throw new Error('Limit must be a whole number between 1 and 100.');
+    if (getDatabaseMode() !== 'mongo') {
+      response.json({ success: true, data: getAllMockAccessOptions().filter((option) => option.distanceKm <= radiusKm).sort((left, right) => left.distanceKm - right.distanceKm).slice(0, limitValue), mode: getDatabaseMode() });
+      return;
+    }
+    const data = await findNearbyResources(location, radiusKm, { category: typeof request.query.category === 'string' ? request.query.category : undefined, accessType: typeof request.query.accessType === 'string' ? request.query.accessType : undefined, availability: typeof request.query.availability === 'string' ? request.query.availability : undefined, limit: limitValue });
+    response.json({ success: true, data, mode: getDatabaseMode() });
+  } catch (error) {
+    response.status(400).json({ success: false, error: error instanceof Error ? error.message : 'We could not retrieve nearby resources.' });
   }
 });
 

@@ -1,5 +1,7 @@
 export type RequirementUrgency = 'low' | 'medium' | 'high' | null;
 
+export type UserCoordinates = { latitude: number; longitude: number };
+
 export type UserRequirement = {
     item: string | null;
     purpose: string | null;
@@ -10,4 +12,5 @@ export type UserRequirement = {
     urgency: RequirementUrgency;
     budget: number | null;
     requiredCapabilities: string[];
+    locationCoordinates?: UserCoordinates | null;
 };
