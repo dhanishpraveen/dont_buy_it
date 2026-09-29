@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { hasSupabaseConfig, supabase } from '../lib/supabase';
+import { clearPrivateCache } from '../lib/localStorageCache';
 
 type ProfileRow = {
     id: string;
@@ -216,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setSession(null);
             setUser(null);
             setAuthError(null);
+            clearPrivateCache();
         },
         sendPasswordRecovery: async (email) => {
             requireSupabaseConfig();

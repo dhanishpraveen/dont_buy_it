@@ -72,6 +72,11 @@ function mapDatabaseError(
     );
   if (message.includes("already processed"))
     return new LifecycleError("This request has already been processed.", 409);
+  if (message.includes("request period has already started"))
+    return new LifecycleError(
+      "This request period has already started. Ask the requester to cancel and submit new future dates.",
+      409,
+    );
   if (message.includes("no longer available"))
     return new LifecycleError("This listing is no longer available.", 409);
   if (

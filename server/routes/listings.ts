@@ -14,34 +14,39 @@ const router = Router();
 
 router.get("/", async (request, response) => {
   try {
-    const data = await listPublishedListings({
-      search:
-        typeof request.query.search === "string"
-          ? request.query.search
-          : undefined,
-      category:
-        typeof request.query.category === "string"
-          ? request.query.category
-          : undefined,
-      accessType:
-        typeof request.query.accessType === "string"
-          ? request.query.accessType
-          : undefined,
-      condition:
-        typeof request.query.condition === "string"
-          ? request.query.condition
-          : undefined,
-      availability:
-        typeof request.query.availability === "string"
-          ? request.query.availability
-          : undefined,
-      location:
-        typeof request.query.location === "string"
-          ? request.query.location
-          : undefined,
-      sort:
-        typeof request.query.sort === "string" ? request.query.sort : undefined,
-    });
+    const data = await listPublishedListings(
+      {
+        search:
+          typeof request.query.search === "string"
+            ? request.query.search
+            : undefined,
+        category:
+          typeof request.query.category === "string"
+            ? request.query.category
+            : undefined,
+        accessType:
+          typeof request.query.accessType === "string"
+            ? request.query.accessType
+            : undefined,
+        condition:
+          typeof request.query.condition === "string"
+            ? request.query.condition
+            : undefined,
+        availability:
+          typeof request.query.availability === "string"
+            ? request.query.availability
+            : undefined,
+        location:
+          typeof request.query.location === "string"
+            ? request.query.location
+            : undefined,
+        sort:
+          typeof request.query.sort === "string"
+            ? request.query.sort
+            : undefined,
+      },
+      request.user?.id,
+    );
     response.json({ success: true, data });
   } catch {
     response

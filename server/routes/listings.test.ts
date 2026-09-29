@@ -151,6 +151,25 @@ describe("listing API with Supabase request identity", () => {
     expect(
       publicList.body.data.some((listing: { id: string }) => listing.id === id),
     ).toBe(true);
+    const ownerBrowse = await owner
+      .get("/api/listings")
+      .query({ search: "projector" });
+    expect(ownerBrowse.status).toBe(200);
+    expect(
+      ownerBrowse.body.data.some(
+        (listing: { id: string }) => listing.id === id,
+      ),
+    ).toBe(false);
+    const communityViewer = authed(verifiedAgent("Community Viewer"));
+    const communityView = await communityViewer
+      .get("/api/listings")
+      .query({ search: "projector" });
+    expect(communityView.status).toBe(200);
+    expect(
+      communityView.body.data.some(
+        (listing: { id: string }) => listing.id === id,
+      ),
+    ).toBe(true);
     await request(app).get(`/api/listings/${id}`).expect(200);
     const matched = await request(app)
       .post("/api/resources/match")

@@ -271,6 +271,7 @@ export async function listSupabaseListings(
     location?: string;
     sort?: string;
   } = {},
+  viewerId?: string,
 ): Promise<ListingView[]> {
   const client = getSupabasePublicClient();
   let request = client
@@ -279,6 +280,7 @@ export async function listSupabaseListings(
     .eq("status", "ACTIVE")
     .neq("availability_status", "UNAVAILABLE")
     .limit(100);
+  if (viewerId) request = request.neq("owner_id", viewerId);
   if (query.category) request = request.eq("item.category", query.category);
   if (query.location?.trim())
     request = request.ilike("location_area", `%${query.location.trim()}%`);

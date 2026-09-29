@@ -65,3 +65,41 @@ export type ExchangeRecord = {
   returnNotes: string | null;
   createdAt: string;
 };
+
+export function formatAccessRequestStatus(status: AccessRequestStatus): string {
+  switch (status) {
+    case "PENDING":
+      return "Pending";
+    case "ACCEPTED":
+      return "Accepted";
+    case "REJECTED":
+      return "Rejected";
+    case "CANCELLED":
+      return "Cancelled";
+    case "COMPLETED":
+      return "Completed";
+    default:
+      return status;
+  }
+}
+
+export function formatExchangeStatus(status: ExchangeStatus): string {
+  switch (status) {
+    case "PENDING_HANDOVER":
+      return "Pending handover";
+    case "HANDED_OVER":
+      return "Handed over";
+    case "IN_USE":
+      return "In use";
+    case "RETURN_PENDING":
+      return "Return pending";
+    case "RETURNED":
+      return "Returned";
+    case "COMPLETED":
+      return "Completed";
+    case "CANCELLED":
+      return "Cancelled";
+    default:
+      return status;
+  }
+}

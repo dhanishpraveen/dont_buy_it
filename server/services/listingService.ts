@@ -503,8 +503,10 @@ export async function listPublishedListings(
     location?: string;
     sort?: string;
   } = {},
+  viewerId?: string,
 ): Promise<ListingView[]> {
-  if (getDatabaseMode() === "supabase") return listSupabaseListings(query);
+  if (getDatabaseMode() === "supabase")
+    return listSupabaseListings(query, viewerId);
   if (getDatabaseMode() === "mock")
     return sortViews(
       [...mockListings.values()]
@@ -512,6 +514,7 @@ export async function listPublishedListings(
           (listing) =>
             listing.status === "active" &&
             listing.availability !== "unavailable" &&
+            (!viewerId || listing.ownerId !== viewerId) &&
             matchesQuery(listing, query),
         )
         .map((listing) => sanitizePrivateLocationData(listing)),
@@ -533,7 +536,11 @@ export async function listPublishedListings(
           toView(listing as unknown as Record<string, unknown>),
         ),
       )
-      .filter((listing) => matchesQuery(listing, query)),
+      .filter(
+        (listing) =>
+          (!viewerId || listing.owner.id !== viewerId) &&
+          matchesQuery(listing, query),
+      ),
     query.sort,
   );
 }

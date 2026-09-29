@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { invalidateListingCaches } from "../lib/localStorageCache";
 
 export type ListingView = {
   id: string;
@@ -101,22 +102,27 @@ export async function getListing(id: string): Promise<ListingView> {
 export async function createListing(
   input: Record<string, unknown>,
 ): Promise<ListingView> {
-  return (await request("/listings", {
+  const created = (await request("/listings", {
     method: "POST",
     body: JSON.stringify(input),
   })) as ListingView;
+  invalidateListingCaches();
+  return created;
 }
 
 export async function updateListing(
   id: string,
   input: Record<string, unknown>,
 ): Promise<ListingView> {
-  return (await request(`/listings/${encodeURIComponent(id)}`, {
+  const updated = (await request(`/listings/${encodeURIComponent(id)}`, {
     method: "PATCH",
     body: JSON.stringify(input),
   })) as ListingView;
+  invalidateListingCaches();
+  return updated;
 }
 
 export async function deleteListing(id: string): Promise<void> {
   await request(`/listings/${encodeURIComponent(id)}`, { method: "DELETE" });
+  invalidateListingCaches();
 }

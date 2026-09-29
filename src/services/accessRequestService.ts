@@ -3,6 +3,10 @@ import type {
   AccessRequestRecord,
 } from "../../shared/types/lifecycle";
 import { supabase } from "../lib/supabase";
+import {
+  invalidateExchangeCaches,
+  invalidateRequestCaches,
+} from "../lib/localStorageCache";
 
 type ApiResponse<T> =
   | { success: true; data: T }
@@ -63,23 +67,38 @@ export function createRequest(input: {
   requestedUntil?: string | null;
   message?: string | null;
 }): Promise<{ id: string }> {
-  return request("/requests", { method: "POST", body: JSON.stringify(input) });
+  return request<{ id: string }>("/requests", {
+    method: "POST",
+    body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateRequestCaches();
+    return result;
+  });
 }
 
 export function decideRequest(
   id: string,
   decision: "ACCEPT" | "REJECT",
 ): Promise<{ exchangeId: string | null }> {
-  return request(`/requests/${encodeURIComponent(id)}/decision`, {
-    method: "POST",
-    body: JSON.stringify({ decision }),
+  return request<{ exchangeId: string | null }>(
+    `/requests/${encodeURIComponent(id)}/decision`,
+    {
+      method: "POST",
+      body: JSON.stringify({ decision }),
+    },
+  ).then((result) => {
+    if (result.exchangeId) invalidateExchangeCaches();
+    else invalidateRequestCaches();
+    return result;
   });
 }
 
 export function cancelRequest(id: string): Promise<void> {
-  return request(`/requests/${encodeURIComponent(id)}/cancel`, {
+  return request<void>(`/requests/${encodeURIComponent(id)}/cancel`, {
     method: "POST",
     body: JSON.stringify({}),
+  }).then(() => {
+    invalidateRequestCaches();
   });
 }
 
@@ -98,8 +117,10 @@ export function performExchangeAction(
   action: ExchangeAction,
   notes?: string,
 ): Promise<void> {
-  return request(`/exchanges/${encodeURIComponent(id)}/actions`, {
+  return request<void>(`/exchanges/${encodeURIComponent(id)}/actions`, {
     method: "POST",
     body: JSON.stringify({ action, notes }),
+  }).then(() => {
+    invalidateExchangeCaches();
   });
 }

@@ -1,5 +1,4 @@
 import { ArrowRight, Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LiveListingCard } from '../components/items/LiveListingCard';
 import { Button } from '../components/ui/Button';
@@ -7,26 +6,24 @@ import { Card } from '../components/ui/Card';
 import { SectionHeader } from '../components/ui/SectionHeader';
 import { useAuth } from '../context/AuthContext';
 import { getMyListings, getPublishedListings, type ListingView } from '../services/listingService';
+import { useCachedResource } from '../hooks/useCachedResource';
+import { cacheKeys, cacheTtl } from '../lib/localStorageCache';
 
 export function LiveDashboardPage() {
     const { user } = useAuth();
-    const [myListings, setMyListings] = useState<ListingView[]>([]);
-    const [recentListings, setRecentListings] = useState<ListingView[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        let active = true;
-        Promise.all([getMyListings(), getPublishedListings({ sort: 'newest' })])
-            .then(([mine, recent]) => {
-                if (!active) return;
-                setMyListings(mine);
-                setRecentListings(recent.slice(0, 3));
-            })
-            .catch(() => { if (active) setError('We could not load your dashboard. Please try again.'); })
-            .finally(() => { if (active) setLoading(false); });
-        return () => { active = false; };
-    }, []);
+    const { data, loading, refreshing, error } = useCachedResource(
+        cacheKeys.dashboard(user?.id ?? 'signed-out'),
+        cacheTtl.dashboard,
+        async () => {
+            const [mine, recent] = await Promise.all([
+                getMyListings(),
+                getPublishedListings({ sort: 'newest' }),
+            ]);
+            return { mine, recent: recent.slice(0, 3) };
+        },
+    );
+    const myListings = data?.mine ?? [];
+    const recentListings = data?.recent ?? [];
 
     const activeCount = myListings.filter((listing) => listing.status === 'active').length;
     return <div className="space-y-10">
@@ -35,6 +32,7 @@ export function LiveDashboardPage() {
             <Link to="/add-item"><Button><Plus size={17} />Create listing</Button></Link>
         </section>
         {error ? <p className="rounded-control bg-red-50 px-3 py-2 text-sm font-semibold text-red-800" role="alert">{error}</p> : null}
+        {refreshing ? <p className="text-xs text-muted" role="status">Refreshing your dashboard...</p> : null}
         <section className="grid gap-4 sm:grid-cols-2">
             <Card className="p-5"><p className="text-sm font-semibold text-muted">My listings</p><p className="mt-2 font-display text-3xl font-semibold text-ink">{loading ? '...' : myListings.length}</p><Link to="/listings" className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-bark">Manage listings <ArrowRight size={15} /></Link></Card>
             <Card className="p-5"><p className="text-sm font-semibold text-muted">Active listings</p><p className="mt-2 font-display text-3xl font-semibold text-ink">{loading ? '...' : activeCount}</p><p className="mt-3 text-sm text-muted">Available to the community</p></Card>

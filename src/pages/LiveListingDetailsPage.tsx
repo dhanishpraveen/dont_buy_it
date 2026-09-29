@@ -1,11 +1,12 @@
 import { ArrowLeft, CalendarClock, MapPin, Pencil, ShieldCheck } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { useAuth } from '../context/AuthContext';
 import { formatListingPrice } from '../lib/listingFormat';
 import { getListing, type ListingView } from '../services/listingService';
+import { useCachedResource } from '../hooks/useCachedResource';
+import { cacheKeys, cacheTtl } from '../lib/localStorageCache';
 
 const methodLabel: Record<ListingView['accessType'], string> = { borrow: 'Borrow', rent: 'Rent', 'buy-used': 'Buy used', 'buy-new': 'Buy new' };
 const availabilityLabel: Record<ListingView['availability'], string> = { available: 'Available', 'partially-available': 'Partially available', unavailable: 'Unavailable' };
@@ -20,21 +21,17 @@ export function LiveListingDetailsPage() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
-    const [listing, setListing] = useState<ListingView | null>(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        let active = true;
-        if (!id) { setListing(null); setLoading(false); return; }
-        setLoading(true);
-        getListing(id).then((result) => { if (active) setListing(result); })
-            .catch(() => { if (active) setListing(null); })
-            .finally(() => { if (active) setLoading(false); });
-        return () => { active = false; };
-    }, [id]);
+    const { data: listing, loading, refreshing, error } = useCachedResource(
+        cacheKeys.listing(id ?? 'missing', user?.id),
+        cacheTtl.listingDetails,
+        () => {
+            if (!id) throw new Error('Listing not found.');
+            return getListing(id);
+        },
+    );
 
     if (loading) return <div className="py-20 text-center text-sm text-muted" role="status">Loading listing...</div>;
-    if (!listing) return <div className="py-20 text-center"><h1 className="font-display text-3xl font-semibold text-ink">Listing not found</h1><p className="mt-2 text-sm text-muted">It may have been archived or is no longer available.</p><Link to="/browse" className="mt-4 inline-block text-sm font-semibold text-bark underline">Back to browse</Link></div>;
+    if (!listing) return <div className="py-20 text-center"><h1 className="font-display text-3xl font-semibold text-ink">Listing not found</h1><p className="mt-2 text-sm text-muted">{error ?? 'It may have been archived or is no longer available.'}</p><Link to="/browse" className="mt-4 inline-block text-sm font-semibold text-bark underline">Back to browse</Link></div>;
 
     const isOwner = Boolean(user && listing.owner.id && user.id === listing.owner.id);
     const canRequest = !isOwner && listing.status === 'active' && listing.availability !== 'unavailable';
@@ -46,6 +43,8 @@ export function LiveListingDetailsPage() {
         <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
             <div>{image ? <img src={image} alt={listing.item.name} className="aspect-[4/3] w-full rounded-card object-cover" /> : <div className="flex aspect-[4/3] items-center justify-center rounded-card bg-sage-soft text-sm text-muted">No image added</div>}<div className="mt-6 flex flex-wrap gap-3">{listing.item.images.slice(1).map((src) => <img key={src} src={src} alt="" className="h-20 w-20 rounded-control object-cover" />)}</div></div>
             <div>
+                {refreshing ? <p className="mb-3 text-xs text-muted" role="status">Refreshing listing...</p> : null}
+                {error ? <p className="mb-3 rounded-control bg-red-50 px-3 py-2 text-sm text-red-800" role="status">Showing saved listing data. {error}</p> : null}
                 <div className="flex flex-wrap items-center gap-3"><span className="rounded-full bg-sage-soft px-3 py-1 text-xs font-bold text-sage">{methodLabel[listing.accessType]}</span><span className="text-sm font-semibold text-muted">{listing.status === 'active' ? 'Published' : listing.status}</span></div>
                 <h1 className="mt-4 font-display text-4xl font-semibold leading-tight text-ink">{listing.title || listing.item.name}</h1>
                 {listing.title && listing.title !== listing.item.name ? <p className="mt-2 text-sm font-semibold text-muted">Item: {listing.item.name}</p> : null}

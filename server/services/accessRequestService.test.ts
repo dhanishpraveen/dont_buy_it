@@ -83,6 +83,23 @@ describe("access request lifecycle service", () => {
     ).rejects.toMatchObject({ status: 409 });
   });
 
+  it("maps an expired request period to a clear conflict response", async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: {
+        code: "P0001",
+        message: "This request period has already started.",
+      },
+    });
+    await expect(
+      decideAccessRequest(listingId, "ACCEPT", accessToken),
+    ).rejects.toMatchObject({
+      status: 409,
+      message:
+        "This request period has already started. Ask the requester to cancel and submit new future dates.",
+    });
+  });
+
   it("requests details through an authenticated participant-scoped RPC", async () => {
     const record = { id: listingId, status: "PENDING" };
     rpc.mockResolvedValue({ data: [record], error: null });
