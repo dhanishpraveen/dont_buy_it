@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { Session, User } from '@supabase/supabase-js';
 import { hasSupabaseConfig, supabase } from '../lib/supabase';
 import { clearPrivateCache } from '../lib/localStorageCache';
+import { getUserTrustSummary, type TrustLevel } from '../services/trustService';
 
 type ProfileRow = {
     id: string;
@@ -26,7 +27,14 @@ export type AuthUser = {
     approximateLocation?: string;
     emailVerified: boolean;
     verificationStatus: 'unverified' | 'pending' | 'verified';
-    trustSummary: { score: number; completedExchanges: number; reviewCount: number };
+    trustSummary: {
+        score: number | null;
+        level: TrustLevel;
+        completedExchanges: number;
+        successfulReturns: number;
+        reviewCount: number;
+        averageRating: number | null;
+    };
     createdAt: string;
     updatedAt: string;
 };
@@ -71,8 +79,25 @@ function requireSupabaseConfig(): void {
     if (!hasSupabaseConfig) throw new Error('Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.');
 }
 
-export function mapSupabaseProfile(profile: ProfileRow, authUser: User): AuthUser {
+export function mapSupabaseProfile(
+    profile: ProfileRow,
+    authUser: User,
+    trustSummary?: Awaited<ReturnType<typeof getUserTrustSummary>>,
+): AuthUser {
     const emailVerified = Boolean(authUser.email_confirmed_at || profile.email_verified_at);
+    const resolvedTrust = trustSummary ?? {
+        userId: profile.id,
+        score: null,
+        level: 'New member',
+        completedExchanges: 0,
+        successfulReturns: 0,
+        reviewCount: 0,
+        averageRating: null,
+        emailVerified,
+        memberSince: profile.created_at ?? null,
+        cancellationCount: 0,
+    };
+
     return {
         id: profile.id,
         name: profile.full_name || 'User',
@@ -83,7 +108,14 @@ export function mapSupabaseProfile(profile: ProfileRow, authUser: User): AuthUse
         approximateLocation: profile.location_area || undefined,
         emailVerified,
         verificationStatus: emailVerified ? 'verified' : 'pending',
-        trustSummary: { score: 0, completedExchanges: 0, reviewCount: 0 },
+        trustSummary: {
+            score: resolvedTrust.score,
+            level: resolvedTrust.level,
+            completedExchanges: resolvedTrust.completedExchanges,
+            successfulReturns: resolvedTrust.successfulReturns,
+            reviewCount: resolvedTrust.reviewCount,
+            averageRating: resolvedTrust.averageRating,
+        },
         createdAt: profile.created_at,
         updatedAt: profile.updated_at,
     };
@@ -93,7 +125,8 @@ async function loadProfile(authUser: User): Promise<AuthUser> {
     const { data, error } = await supabase.from('profiles').select(profileColumns).eq('id', authUser.id).maybeSingle();
     if (error) throw new Error('Unable to load your profile. Please try again.');
     if (!data) throw new Error('Your profile is still being prepared. Please try again shortly.');
-    return mapSupabaseProfile(data as ProfileRow, authUser);
+    const trustSummary = await getUserTrustSummary(authUser.id);
+    return mapSupabaseProfile(data as ProfileRow, authUser, trustSummary);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -239,7 +272,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             };
             const { data, error } = await supabase.from('profiles').update(updates).eq('id', user.id).select(profileColumns).single();
             if (error) throw new Error(friendlyAuthError(error.message));
-            const updated = mapSupabaseProfile(data as ProfileRow, session!.user);
+            const updatedTrust = await getUserTrustSummary(user.id);
+            const updated = mapSupabaseProfile(data as ProfileRow, session!.user, updatedTrust);
             setUser(updated);
             return updated;
         },

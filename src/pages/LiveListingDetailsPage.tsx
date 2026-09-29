@@ -1,10 +1,12 @@
 import { ArrowLeft, CalendarClock, MapPin, Pencil, ShieldCheck } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { useAuth } from '../context/AuthContext';
 import { formatListingPrice } from '../lib/listingFormat';
 import { getListing, type ListingView } from '../services/listingService';
+import { getUserTrustSummary, type TrustSummary } from '../services/trustService';
 import { useCachedResource } from '../hooks/useCachedResource';
 import { cacheKeys, cacheTtl } from '../lib/localStorageCache';
 
@@ -21,6 +23,7 @@ export function LiveListingDetailsPage() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
+    const [ownerTrust, setOwnerTrust] = useState<TrustSummary | null>(null);
     const { data: listing, loading, refreshing, error } = useCachedResource(
         cacheKeys.listing(id ?? 'missing', user?.id),
         cacheTtl.listingDetails,
@@ -29,6 +32,24 @@ export function LiveListingDetailsPage() {
             return getListing(id);
         },
     );
+
+    useEffect(() => {
+        if (!listing?.owner.id) {
+            setOwnerTrust(null);
+            return;
+        }
+
+        let isMounted = true;
+        void getUserTrustSummary(listing.owner.id).then((summary) => {
+            if (isMounted) {
+                setOwnerTrust(summary);
+            }
+        });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [listing?.owner.id]);
 
     if (loading) return <div className="py-20 text-center text-sm text-muted" role="status">Loading listing...</div>;
     if (!listing) return <div className="py-20 text-center"><h1 className="font-display text-3xl font-semibold text-ink">Listing not found</h1><p className="mt-2 text-sm text-muted">{error ?? 'It may have been archived or is no longer available.'}</p><Link to="/browse" className="mt-4 inline-block text-sm font-semibold text-bark underline">Back to browse</Link></div>;
@@ -52,7 +73,7 @@ export function LiveListingDetailsPage() {
                 <div className="mt-6 grid gap-3 text-sm text-muted"><span className="flex items-center gap-2"><MapPin size={16} className="text-sage" />{listing.location}{listing.distanceKm !== undefined ? ` · ${listing.distanceKm.toFixed(1)} km away` : ''}</span><span className="flex items-center gap-2"><ShieldCheck size={16} className="text-sage" />{listing.item.condition}</span><span>{availabilityLabel[listing.availability]}</span>{availableFrom || availableUntil ? <span className="flex items-center gap-2"><CalendarClock size={16} className="text-sage" />{availableFrom ? `From ${availableFrom}` : 'Available now'}{availableUntil ? ` to ${availableUntil}` : ''}</span> : null}</div>
                 <p className="mt-7 font-display text-2xl font-semibold text-bark">{formatListingPrice(listing)}</p>
                 {listing.deposit ? <p className="mt-1 text-sm text-muted">Deposit: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: listing.currency ?? 'INR' }).format(listing.deposit)}</p> : null}
-                <Card className="mt-7 p-5"><p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">Listed by</p><p className="mt-2 font-display text-xl font-semibold text-ink">{listing.owner.name}</p></Card>
+                <Card className="mt-7 p-5"><p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">Listed by</p><p className="mt-2 font-display text-xl font-semibold text-ink">{listing.owner.name}</p>{ownerTrust ? <div className="mt-4 rounded-control border border-line bg-surface p-3"><div className="flex items-center justify-between gap-4 text-sm"><span className="text-muted">Member status</span><span className="font-semibold text-ink">{ownerTrust.level}</span></div><div className="mt-2 flex items-center justify-between gap-4 text-sm"><span className="text-muted">Trust score</span><span className="font-semibold text-ink">{ownerTrust.score === null ? 'New member' : `${ownerTrust.score}/100`}</span></div><div className="mt-2 flex items-center justify-between gap-4 text-sm"><span className="text-muted">Reviews</span><span className="font-semibold text-ink">{ownerTrust.reviewCount}</span></div></div> : <p className="mt-3 text-sm text-muted">Trust rating still loading.</p>}</Card>
                 {isOwner ? <Link to={`/listings/${listing.id}/edit`}><Button className="mt-5"><Pencil size={16} />Edit listing</Button></Link> : null}
                 {canRequest ? <Link to={`/request-access/${listing.id}`}><Button className="mt-5">{listing.accessType === 'borrow' ? 'Request to Borrow' : listing.accessType === 'rent' ? 'Request to Rent' : 'Request to Buy'}</Button></Link> : null}
             </div>

@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowUpRight, CalendarDays, MapPin } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -11,6 +11,7 @@ import {
     type AccessRequestRecord,
 } from '../../shared/types/lifecycle';
 import { cancelRequest, decideRequest, getRequest } from '../services/accessRequestService';
+import { getUserTrustSummary, type TrustSummary } from '../services/trustService';
 
 const accessLabels: Record<AccessRequestRecord['accessType'], string> = { BORROW: 'Borrow', RENT: 'Rent', BUY_USED: 'Buy used', BUY_NEW: 'Buy new' };
 
@@ -42,6 +43,30 @@ export function RequestDetailsPage() {
     );
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [participantTrust, setParticipantTrust] = useState<Record<string, TrustSummary>>({});
+
+    useEffect(() => {
+        if (!record) {
+            setParticipantTrust({});
+            return;
+        }
+
+        let isMounted = true;
+        void Promise.all([
+            getUserTrustSummary(record.requester.id),
+            getUserTrustSummary(record.owner.id),
+        ]).then(([requester, owner]) => {
+            if (!isMounted) return;
+            const next = {} as Record<string, TrustSummary>;
+            if (requester) next[record.requester.id] = requester;
+            if (owner) next[record.owner.id] = owner;
+            setParticipantTrust(next);
+        });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [record?.requester.id, record?.owner.id]);
 
     const isOwner = Boolean(user && record?.owner.id === user.id);
     const isRequester = Boolean(user && record?.requester.id === user.id);
@@ -76,7 +101,7 @@ export function RequestDetailsPage() {
         {displayError ? <p className="mt-5 rounded-control bg-red-50 px-3 py-2 text-sm font-semibold text-red-800" role="alert">{displayError}</p> : null}
         {periodExpired ? <p className="mt-5 rounded-control bg-canvas px-3 py-2 text-sm font-semibold text-bark" role="status">This request period has already started. Ask the requester to cancel and submit new future dates.</p> : null}
         <Card className="mt-6 p-5 sm:p-7"><h2 className="font-display text-2xl font-semibold text-ink">Listing</h2><p className="mt-2 text-sm font-semibold text-ink">{record.listing.itemName}</p><p className="mt-1 text-sm leading-6 text-muted">{record.listing.description}</p><p className="mt-3 text-sm font-semibold text-bark">{requestPrice(record)}{record.depositAmount ? ` · Deposit ${record.listing.currency} ${record.depositAmount.toFixed(2)}` : ''}</p><p className="mt-3 inline-flex items-center gap-1.5 text-sm text-muted"><MapPin size={15} />{record.listing.location}</p><Link to={`/listing/${record.listing.id}`} className="mt-4 flex items-center gap-1 text-sm font-semibold text-bark">Open listing <ArrowUpRight size={15} /></Link></Card>
-        <Card className="mt-4 p-5 sm:p-7"><h2 className="font-display text-2xl font-semibold text-ink">People and schedule</h2><dl className="mt-4 grid gap-4 sm:grid-cols-2"><div><dt className="text-xs font-bold uppercase tracking-wide text-muted">Requester</dt><dd className="mt-1 text-sm font-semibold text-ink">{record.requester.name}</dd></div><div><dt className="text-xs font-bold uppercase tracking-wide text-muted">Owner</dt><dd className="mt-1 text-sm font-semibold text-ink">{record.owner.name}</dd></div><div className="inline-flex items-start gap-2 text-sm text-muted sm:col-span-2"><CalendarDays size={16} className="mt-0.5" />{date(record.requestedFrom)} to {date(record.requestedUntil)}</div></dl>{record.message ? <p className="mt-5 rounded-control bg-canvas px-3 py-3 text-sm leading-6 text-muted">{record.message}</p> : null}</Card>
+        <Card className="mt-4 p-5 sm:p-7"><h2 className="font-display text-2xl font-semibold text-ink">People and schedule</h2><dl className="mt-4 grid gap-4 sm:grid-cols-2"><div><dt className="text-xs font-bold uppercase tracking-wide text-muted">Requester</dt><dd className="mt-1 text-sm font-semibold text-ink">{record.requester.name}</dd>{participantTrust[record.requester.id] ? <p className="mt-2 text-xs text-muted">{participantTrust[record.requester.id].level} · {participantTrust[record.requester.id].score === null ? 'New member' : `${participantTrust[record.requester.id].score}/100`}</p> : <p className="mt-2 text-xs text-muted">Trust still loading</p>}</div><div><dt className="text-xs font-bold uppercase tracking-wide text-muted">Owner</dt><dd className="mt-1 text-sm font-semibold text-ink">{record.owner.name}</dd>{participantTrust[record.owner.id] ? <p className="mt-2 text-xs text-muted">{participantTrust[record.owner.id].level} · {participantTrust[record.owner.id].score === null ? 'New member' : `${participantTrust[record.owner.id].score}/100`}</p> : <p className="mt-2 text-xs text-muted">Trust still loading</p>}</div><div className="inline-flex items-start gap-2 text-sm text-muted sm:col-span-2"><CalendarDays size={16} className="mt-0.5" />{date(record.requestedFrom)} to {date(record.requestedUntil)}</div></dl>{record.message ? <p className="mt-5 rounded-control bg-canvas px-3 py-3 text-sm leading-6 text-muted">{record.message}</p> : null}</Card>
         <div className="mt-5 flex flex-wrap gap-3">
             {isOwner && record.status === 'PENDING' ? <><Button onClick={() => void updateDecision('ACCEPT')} disabled={busy || periodExpired}>{busy ? 'Processing...' : periodExpired ? 'Period started' : 'Accept request'}</Button><Button variant="outline" onClick={() => void updateDecision('REJECT')} disabled={busy}>Reject</Button></> : null}
             {isRequester && record.status === 'PENDING' ? <Button variant="outline" onClick={() => void cancel()} disabled={busy}>{busy ? 'Cancelling...' : 'Cancel request'}</Button> : null}
