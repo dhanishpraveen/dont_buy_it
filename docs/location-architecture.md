@@ -30,7 +30,7 @@ Listing records may include:
 
 - an approximate public description such as `Adyar, Chennai`
 - optional GeoJSON `Point` coordinates for distance calculation
-- `locationPoint` stored in MongoDB as `[longitude, latitude]`
+- MongoDB `locationPoint` stored as `[longitude, latitude]`, or Supabase `listings.location` as `geography(Point,4326)`
 
 This keeps the privacy model clear: public display uses a safe area string, while computation uses only the validated coordinate payload when it exists.
 
@@ -40,7 +40,7 @@ Distance is computed deterministically with the Haversine formula in kilometers 
 
 ## Geospatial support
 
-The Listing model includes a 2dsphere index on the `locationPoint` field for efficient nearby queries. This supports MongoDB-backed resource discovery without changing the scoring model.
+The Mongo Listing model includes a 2dsphere index on `locationPoint`; Supabase uses a GiST index on `public.listings.location` and the `nearby_listings` PostGIS RPC. Both support nearby discovery without changing the scoring model.
 
 ## Nearby resource retrieval
 
@@ -54,7 +54,7 @@ Nearby queries accept parameters such as:
 - availability
 - limit
 
-The query validates radius and coordinate ranges before performing geospatial filtering. Results are sorted by distance and then returned with the distance already included in the access option.
+The query validates radius and coordinate ranges before performing geospatial filtering. Mongo and Supabase results are sorted by deterministic distance and then mapped to the distance field in the access option. Supabase's RPC returns meters and the adapter converts them to kilometers; exact listing coordinates are never selected or returned.
 
 ## Access score integration
 

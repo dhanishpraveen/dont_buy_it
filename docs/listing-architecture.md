@@ -1,43 +1,38 @@
 # Resource Listing Architecture
 
-Phase 13 adds user-generated listings while preserving the existing `AccessOption` contract and deterministic decision engine.
+Phase 17 connects user-generated items and offers to Supabase PostgreSQL while preserving the existing `AccessOption` contract and deterministic decision engine.
 
 ## Item vs Listing
 
-An `Item` is the physical resource: name, description, category, images, condition, capabilities, and owner.
+An `Item` is the physical resource: name, description, category, brand/model, images, condition, specifications, and owner. A `Listing` is a separate offer for that item: access type, title/description, price and unit, deposit, availability, approximate location, and lifecycle status. A single item can support separate offers without duplicating its physical details.
 
-A `Listing` is the current access offer for that item: borrow, rent, buy-used, or buy-new, with price, availability, approximate location, and publication status. A future access mode can be represented as another listing without duplicating the physical item concept.
+## Ownership and RLS
+
+Protected Express routes verify the Supabase bearer token in `attachUser`. They pass that same token to a request-scoped anon-key client, so PostgreSQL evaluates `auth.uid()` and the existing RLS policies. The service derives `owner_id` from the verified request identity and ignores owner IDs in request bodies. Item insert/update policies require the owner; listing insert/update policies require the authenticated listing and item owner. Public reads are limited to ACTIVE listings. Owners can read and update their own non-public statuses. No service-role key is used by listing routes.
+
+Public profile joins are limited to rows with an ACTIVE listing and use existing anon column grants; email, phone, bio, and verification fields are not selected or granted to anon. Exact geography is write-only through normal table access. The nearby RPC runs as SECURITY DEFINER with a fixed empty search path and validated parameters because callers cannot select geography; it returns computed distance, never coordinates.
 
 ## Lifecycle
 
-The existing Mongoose listing status values are retained:
+Supabase values are `ACTIVE`, `PAUSED`, `UNAVAILABLE`, `SOLD`, and `ARCHIVED`. The UI supports publish, pause/reactivate, and archive. Archive updates status instead of deleting a referenced row. `available_from`/`available_until` and availability (`AVAILABLE`, `PARTIALLY_AVAILABLE`, `UNAVAILABLE`) remain separate from listing lifecycle status.
 
-- `active`: published and visible to other users.
-- `paused`: owned listing is hidden from public browsing.
-- `closed`: soft-deleted/unpublished so historical references remain possible.
-- `draft`: reserved for future draft workflows.
+## API and service
 
-Availability remains `available`, `partially-available`, or `unavailable`.
+- `POST /api/listings`: create an `items` row, then a separate `listings` row; the owner comes from the verified session.
+- `GET /api/listings`: active public listings with bounded retrieval, database category/access/condition/availability/location/search filters, and sorting.
+- `GET /api/listings/:id`: public ACTIVE detail; an authenticated owner may also read their own paused/archived detail.
+- `GET /api/users/me/listings`: RLS-scoped owner management list.
+- `PATCH /api/listings/:id`: owner-only item/listing edits and pause/reactivation.
+- `DELETE /api/listings/:id`: owner-only archive operation; no permanent delete.
 
-## API
+`server/services/supabaseListingService.ts` owns Supabase row mapping and CRUD. The existing listing service preserves explicit mock and Mongo modes. In the default mode, configured Supabase URL plus anon key selects Supabase; `DATABASE_MODE=mock` and `DATABASE_MODE=mongo` remain explicit development/legacy overrides.
 
-- `POST /api/listings`: authenticated creation; owner is derived from the session.
-- `GET /api/listings`: public published listings with search, category, access type, condition, and sort query support.
-- `GET /api/listings/:id`: public active listing detail.
-- `GET /api/users/me/listings`: authenticated owner management list.
-- `PATCH /api/listings/:id`: authenticated owner-only update, including pause/publish status.
-- `DELETE /api/listings/:id`: authenticated owner-only soft delete to `closed`/`unavailable`.
+## Decision and location flow
 
-Public responses expose the owner's display name and trust summary only. Passwords, email, exact private addresses, and internal fields are not returned.
+Supabase rows map through `listingToAccessOption` into the existing normalized resource contract. The AI route retrieves only Supabase candidates in Supabase mode; static `mockAccessOptions` are not concatenated with live data. Requirement extraction and explanations remain with Gemini; retrieval, distance, scoring, ownership analysis, and recommendations remain deterministic and unchanged.
 
-## AccessOption integration
+Nearby candidate retrieval uses `nearby_listings` and maps its `distance_meters` to kilometers. Public display uses `location_area`; private coordinates are never returned. Listings without coordinates remain eligible for normal browse and decision retrieval.
 
-MongoDB listings are populated with their item and owner in `server/repositories/resourceRepository.ts` and mapped into the existing `AccessOption` shape. The scoring engine, ownership analyzer, and recommendation engine receive the same contract as before. No recommendation or score is hardcoded by the listing layer.
+## Images and remaining demo data
 
-## Images and location
-
-Phase 13 stores image references supplied by the client, up to six URLs per listing. It does not implement cloud uploads or storage credentials. Listing location is an approximate area string; exact private addresses are not accepted as a separate public field.
-
-## Data modes
-
-`DATABASE_MODE=mock` supports local listing API demonstrations in memory. `DATABASE_MODE=mongo` persists items and listings through Mongoose. The original deterministic demo catalog remains available in the Browse page when no user-generated listings exist.
+The create form accepts up to six HTTP(S) image URLs. The existing private `listing-images` bucket is not wired to an upload flow; no image upload or signed-URL management is claimed. Static catalog data remains in unit tests, explicit mock mode, and legacy unused prototype modules, but is not used by the active Browse, Dashboard, My Listings, or Supabase decision paths.

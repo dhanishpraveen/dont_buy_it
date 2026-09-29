@@ -1,51 +1,67 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { FilterPanel, type BrowseFilters } from '../components/items/FilterPanel';
+import { useDeferredValue, useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ListingFilterPanel, type BrowseFilters } from '../components/items/ListingFilterPanel';
 import { FilterChip } from '../components/items/FilterChip';
-import { ItemCard } from '../components/items/ItemCard';
-import { ListingCard } from '../components/items/ListingCard';
+import { LiveListingCard } from '../components/items/LiveListingCard';
 import { SearchBar } from '../components/items/SearchBar';
-import { itemCategories, mockItems } from '../data/mockItems';
+import { itemCategories } from '../data/mockItems';
+import { Button } from '../components/ui/Button';
 import { SectionHeader } from '../components/ui/SectionHeader';
 import { getPublishedListings, type ListingView } from '../services/listingService';
 
+const emptyFilters = (category = 'All'): BrowseFilters => ({ location: '', availability: 'All', condition: 'All', category, accessType: 'all' });
+
 export function BrowsePage() {
     const [searchParams] = useSearchParams();
-    const initialCategory = searchParams.get('category') ?? 'All';
     const [search, setSearch] = useState('');
-    const [activeCategory, setActiveCategory] = useState(initialCategory);
-    const [filters, setFilters] = useState<BrowseFilters>({ location: '', availability: 'All', condition: 'All', category: initialCategory });
+    const deferredSearch = useDeferredValue(search);
+    const [filters, setFilters] = useState<BrowseFilters>(() => emptyFilters(searchParams.get('category') ?? 'All'));
+    const [sort, setSort] = useState('newest');
     const [filtersOpen, setFiltersOpen] = useState(false);
-    const [publishedListings, setPublishedListings] = useState<ListingView[]>([]);
+    const [listings, setListings] = useState<ListingView[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        getPublishedListings().then(setPublishedListings).catch(() => setPublishedListings([]));
-    }, []);
+        let active = true;
+        setLoading(true);
+        setError(null);
+        getPublishedListings({
+            search: deferredSearch.trim() || undefined,
+            category: filters.category === 'All' ? undefined : filters.category,
+            accessType: filters.accessType === 'all' ? undefined : filters.accessType,
+            condition: filters.condition === 'All' ? undefined : filters.condition,
+            availability: filters.availability === 'All' ? undefined : filters.availability,
+            location: filters.location.trim() || undefined,
+            sort,
+        }).then((result) => { if (active) setListings(result); })
+            .catch(() => { if (active) { setListings([]); setError('Listings are unavailable right now. Please try again.'); } })
+            .finally(() => { if (active) setLoading(false); });
+        return () => { active = false; };
+    }, [deferredSearch, filters, sort]);
 
-    const normalizedSearch = search.toLowerCase().trim();
-    const visibleItems = useMemo(() => mockItems.filter((item) => {
-        const matchesSearch = !normalizedSearch || `${item.name} ${item.category}`.toLowerCase().includes(normalizedSearch);
-        return matchesSearch && (activeCategory === 'All' || item.category === activeCategory) && (filters.category === 'All' || item.category === filters.category) && (filters.availability === 'All' || item.availability === filters.availability) && (filters.condition === 'All' || item.condition === filters.condition) && (!filters.location || item.location.toLowerCase().includes(filters.location.toLowerCase()));
-    }), [activeCategory, filters, normalizedSearch]);
-
-    const visibleListings = publishedListings.filter((listing) => {
-        const matchesSearch = !normalizedSearch || `${listing.item.name} ${listing.item.category} ${listing.item.description}`.toLowerCase().includes(normalizedSearch);
-        return matchesSearch && (activeCategory === 'All' || listing.item.category === activeCategory) && (filters.condition === 'All' || listing.item.condition === filters.condition) && (!filters.location || listing.location.toLowerCase().includes(filters.location.toLowerCase()));
-    });
-
-    const chooseCategory = (category: string) => { setActiveCategory(category); setFilters((current) => ({ ...current, category })); };
-    const resetFilters = () => { setActiveCategory('All'); setFilters({ location: '', availability: 'All', condition: 'All', category: 'All' }); setSearch(''); };
+    const resetFilters = () => { setFilters(emptyFilters()); setSearch(''); setSort('newest'); };
+    const accessLabel = filters.accessType === 'all' ? '' : filters.accessType.replace('-', ' ');
+    const availabilityLabel = filters.availability === 'All' ? '' : filters.availability === 'PARTIALLY_AVAILABLE' ? 'Partially available' : 'Available';
 
     return <div>
-        <SectionHeader title="Find what you need" description="Borrow useful things from people in your community." />
+        <SectionHeader title="Find what you need" description="Browse real listings shared by people in your community." />
         <div className="mb-7"><SearchBar value={search} onChange={setSearch} onFilterClick={() => setFiltersOpen(true)} /></div>
-        <div className="mb-8 flex gap-2 overflow-x-auto pb-1">{['All', ...itemCategories].map((category) => <button key={category} onClick={() => chooseCategory(category)} className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors ${activeCategory === category ? 'bg-bark text-surface' : 'bg-surface text-muted hover:bg-sage-soft hover:text-sage'}`}>{category}</button>)}</div>
-        {visibleListings.length ? <section className="mb-10"><SectionHeader title="Community listings" description="Published by people sharing what they already have." /><div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{visibleListings.map((listing) => <ListingCard key={listing.id} listing={listing} />)}</div></section> : null}
+        <div className="mb-8 flex gap-2 overflow-x-auto pb-1">{['All', ...itemCategories].map((category) => <button key={category} onClick={() => setFilters((current) => ({ ...current, category }))} className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors ${filters.category === category ? 'bg-bark text-surface' : 'bg-surface text-muted hover:bg-sage-soft hover:text-sage'}`}>{category}</button>)}</div>
         <div className="grid gap-8 lg:grid-cols-[230px_minmax(0,1fr)]">
-            <FilterPanel filters={filters} onChange={setFilters} open={filtersOpen} onClose={() => setFiltersOpen(false)} />
+            <ListingFilterPanel filters={filters} onChange={setFilters} open={filtersOpen} onClose={() => setFiltersOpen(false)} />
             <section>
-                <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><span className="text-sm text-muted">{visibleItems.length} demo items</span>{filters.availability !== 'All' ? <FilterChip label={filters.availability} onRemove={() => setFilters({ ...filters, availability: 'All' })} /> : null}{filters.condition !== 'All' ? <FilterChip label={filters.condition} onRemove={() => setFilters({ ...filters, condition: 'All' })} /> : null}{filters.location ? <FilterChip label={filters.location} onRemove={() => setFilters({ ...filters, location: '' })} /> : null}</div><button type="button" onClick={resetFilters} className="text-sm font-semibold text-bark hover:underline">Reset filters</button></div>
-                {visibleItems.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{visibleItems.map((item) => <ItemCard key={item.id} item={item} />)}</div> : <div className="rounded-card border border-dashed border-line bg-surface px-6 py-12 text-center"><h2 className="font-display text-2xl font-semibold text-ink">No matching items found</h2><p className="mt-2 text-sm text-muted">Try changing your search or filters.</p></div>}
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2"><span className="text-sm text-muted">{loading ? 'Loading listings...' : `${listings.length} listings`}</span>
+                        {availabilityLabel ? <FilterChip label={availabilityLabel} onRemove={() => setFilters((current) => ({ ...current, availability: 'All' }))} /> : null}
+                        {filters.condition !== 'All' ? <FilterChip label={filters.condition} onRemove={() => setFilters((current) => ({ ...current, condition: 'All' }))} /> : null}
+                        {accessLabel ? <FilterChip label={accessLabel} onRemove={() => setFilters((current) => ({ ...current, accessType: 'all' }))} /> : null}
+                        {filters.location ? <FilterChip label={filters.location} onRemove={() => setFilters((current) => ({ ...current, location: '' }))} /> : null}
+                    </div>
+                    <div className="flex items-center gap-4"><label className="flex items-center gap-2 text-sm text-muted">Sort<select value={sort} onChange={(event) => setSort(event.target.value)} className="h-9 rounded-control border border-line bg-surface px-2 text-sm text-ink"><option value="newest">Newest</option><option value="price">Price: low to high</option><option value="name">Name</option></select></label><button type="button" onClick={resetFilters} className="text-sm font-semibold text-bark hover:underline">Reset</button></div>
+                </div>
+                {error ? <p className="mb-5 rounded-control bg-red-50 px-3 py-2 text-sm font-semibold text-red-800" role="alert">{error}</p> : null}
+                {loading ? <div className="py-20 text-center text-sm text-muted" role="status">Loading listings...</div> : listings.length ? <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{listings.map((listing) => <LiveListingCard key={listing.id} listing={listing} />)}</div> : <div className="rounded-card border border-dashed border-line bg-surface px-6 py-12 text-center"><h2 className="font-display text-2xl font-semibold text-ink">No resources found.</h2><p className="mt-2 text-sm text-muted">Try changing your search or filters, or add the first listing.</p><Link to="/add-item"><Button className="mt-5">Create Listing</Button></Link></div>}
             </section>
         </div>
     </div>;

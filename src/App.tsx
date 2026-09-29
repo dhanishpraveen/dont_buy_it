@@ -4,9 +4,8 @@ import { PublicLayout } from './components/layout/PublicLayout';
 import { CommunityRoute } from './pages/CommunityRoute';
 import { RoutePlaceholder } from './pages/RoutePlaceholder';
 import { HomePage } from './pages/HomePage';
-import { DashboardPage } from './pages/DashboardPage';
+import { LiveDashboardPage as DashboardPage } from './pages/LiveDashboardPage';
 import { BrowsePage } from './pages/BrowsePage';
-import { ItemDetailsPage } from './pages/ItemDetailsPage';
 import { AIAssistantPage } from './pages/AIAssistantPage';
 import { ScenarioComparisonPage } from './pages/ScenarioComparisonPage';
 import { AuthPage } from './pages/AuthPage';
@@ -15,9 +14,9 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ProtectedRoute } from './components/navigation/ProtectedRoute';
-import { AddItemPage } from './pages/AddItemPage';
-import { MyListingsPage } from './pages/MyListingsPage';
-import { ListingDetailsPage } from './pages/ListingDetailsPage';
+import { LiveAddItemPage as AddItemPage } from './pages/LiveAddItemPage';
+import { LiveMyListingsPage as MyListingsPage } from './pages/LiveMyListingsPage';
+import { LiveListingDetailsPage as ListingDetailsPage } from './pages/LiveListingDetailsPage';
 
 const authenticatedRoutes = [
     { path: '/dashboard', title: 'Dashboard' },
@@ -51,7 +50,7 @@ export function App() {
                     <Route path="/browse" element={<BrowsePage />} />
                     <Route path="/ai-assistant" element={<AIAssistantPage />} />
                     <Route path="/scenario-comparison" element={<ScenarioComparisonPage />} />
-                    <Route path="/item/:id" element={<ItemDetailsPage />} />
+                    <Route path="/item/:id" element={<ListingDetailsPage />} />
                     <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                     <Route path="/add-item" element={<ProtectedRoute><AddItemPage /></ProtectedRoute>} />
                     <Route path="/listings" element={<ProtectedRoute><MyListingsPage /></ProtectedRoute>} />
