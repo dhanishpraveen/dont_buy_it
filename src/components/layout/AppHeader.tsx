@@ -11,7 +11,7 @@ type AppHeaderProps = { onMenuClick: () => void };
 
 export function AppHeader({ onMenuClick }: AppHeaderProps) {
     const navigate = useNavigate();
-    const { user, logout } = useAuth();
+    const { user, signOut } = useAuth();
     const displayUser = user ?? mockUser;
 
     return (
@@ -24,7 +24,7 @@ export function AppHeader({ onMenuClick }: AppHeaderProps) {
                 <Dropdown label=""><span className="flex items-center gap-2"><Avatar initials={displayUser.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()} size="sm" /><span className="hidden text-left sm:block"><span className="block text-sm font-semibold text-ink">{displayUser.name}</span><span className="block text-xs text-muted">{user ? 'Member' : 'Demo mode'}</span></span></span><span className="sr-only">Open user menu</span>
                     {user ? <Link to="/profile" role="menuitem" className="block rounded-control px-3 py-2 text-sm text-ink hover:bg-sage-soft">Profile</Link> : null}
                     <Link to="/settings" role="menuitem" className="block rounded-control px-3 py-2 text-sm text-ink hover:bg-sage-soft">Settings</Link>
-                    {user ? <button type="button" role="menuitem" onClick={() => { void logout(); navigate('/'); }} className="block w-full rounded-control px-3 py-2 text-left text-sm text-ink hover:bg-sage-soft">Sign out</button> : <Link to="/login" role="menuitem" className="block rounded-control px-3 py-2 text-sm text-ink hover:bg-sage-soft">Sign in</Link>}
+                    {user ? <button type="button" role="menuitem" onClick={() => { void signOut().finally(() => navigate('/login', { replace: true })); }} className="block w-full rounded-control px-3 py-2 text-left text-sm text-ink hover:bg-sage-soft">Sign out</button> : <Link to="/login" role="menuitem" className="block rounded-control px-3 py-2 text-sm text-ink hover:bg-sage-soft">Sign in</Link>}
                 </Dropdown>
             </div>
         </header>

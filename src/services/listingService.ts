@@ -1,3 +1,5 @@
+import { supabase } from '../lib/supabase';
+
 export type ListingView = {
     id: string;
     owner: { id: string; name: string; trustScore: number };
@@ -18,7 +20,12 @@ export type ListingView = {
 type ListingResponse = { success: true; data: ListingView | ListingView[] } | { success: false; error?: string };
 
 async function request(path: string, options?: RequestInit): Promise<ListingView | ListingView[]> {
-    const response = await fetch(`/api${path}`, { ...options, credentials: 'include', headers: { 'Content-Type': 'application/json', ...(options?.headers ?? {}) } });
+    const { data: { session } } = await supabase.auth.getSession();
+    const authHeaders = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+    const headers = new Headers(options?.headers ?? {});
+    headers.set('Content-Type', 'application/json');
+    if (session?.access_token) headers.set('Authorization', `Bearer ${session.access_token}`);
+    const response = await fetch(`/api${path}`, { ...options, credentials: 'omit', headers });
     const payload = await response.json() as ListingResponse;
     if (!response.ok || !payload.success) throw new Error(payload.success ? 'Listing request failed.' : payload.error ?? 'Listing request failed.');
     return payload.data;

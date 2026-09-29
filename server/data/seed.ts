@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import { createHash } from 'node:crypto';
-import bcrypt from 'bcryptjs';
 import { Types } from 'mongoose';
 import { connectToDatabase, getDatabaseMode } from '../config/database.js';
 import { mockAccessOptions } from '../../shared/data/mockAccessOptions.js';
@@ -23,7 +22,7 @@ async function seed() {
     for (const name of providerNames) {
         const id = stableId(`user${name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 18)}`);
         userIds.set(name, id);
-        await UserModel.updateOne({ _id: id }, { _id: id, name, email: `${id.toString()}@demo.dontbuyit.local`, passwordHash: await bcrypt.hash('demo-password', 10), trustSummary: { score: 4.5, completedExchanges: 12, reviewCount: 8 } }, { upsert: true });
+        await UserModel.updateOne({ _id: id }, { _id: id, name, email: `${id.toString()}@demo.dontbuyit.local`, trustSummary: { score: 4.5, completedExchanges: 12, reviewCount: 8 } }, { upsert: true });
     }
 
     const itemKeys = [...new Set(mockAccessOptions.map((option) => option.itemId))];

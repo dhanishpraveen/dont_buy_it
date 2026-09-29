@@ -3,9 +3,9 @@ import mongoose from 'mongoose';
 const { Schema, model, models } = mongoose;
 
 const userSchema = new Schema({
+    supabaseUserId: { type: String, unique: true, sparse: true, index: true },
     name: { type: String, required: true, trim: true, maxlength: 120 },
     email: { type: String, required: true, unique: true, trim: true, lowercase: true, index: true },
-    passwordHash: { type: String, required: true, select: false },
     phone: { type: String, trim: true },
     profileImage: { type: String, trim: true },
     location: { type: String, trim: true },
@@ -16,7 +16,6 @@ const userSchema = new Schema({
         completedExchanges: { type: Number, min: 0, default: 0 },
         reviewCount: { type: Number, min: 0, default: 0 },
     },
-    lastLoginAt: { type: Date },
 }, { timestamps: true });
 
 export const UserModel = models.User || model('User', userSchema);

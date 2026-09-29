@@ -1,19 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
 export function getSupabaseUrl(): string {
-  const value = process.env.SUPABASE_URL?.trim();
+  const value = process.env.SUPABASE_URL?.trim() || process.env.VITE_SUPABASE_URL?.trim();
   if (!value) throw new Error('SUPABASE_URL is required when using Supabase-backed auth.');
   return value;
 }
 
-export function getSupabaseServiceRoleKey(): string {
-  const value = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!value) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for server-side Supabase operations.');
+export function getSupabaseAnonKey(): string {
+  const value = process.env.SUPABASE_ANON_KEY?.trim() || process.env.VITE_SUPABASE_ANON_KEY?.trim();
+  if (!value) throw new Error('SUPABASE_ANON_KEY is required for server-side token validation.');
   return value;
 }
 
-export function getSupabaseAdminClient() {
-  return createClient(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
-    auth: { persistSession: false, autoRefreshToken: false },
+export function getSupabaseUserClient(accessToken: string) {
+  return createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
   });
 }

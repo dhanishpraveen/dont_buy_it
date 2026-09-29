@@ -1,44 +1,35 @@
-# Authentication Architecture
+# Supabase Authentication Architecture
 
-Phase 12 adds backend-owned authentication without changing the deterministic access decision pipeline.
+Supabase Auth is the sole source of identity and sessions. The browser uses the single client in `src/lib/supabase.ts`; session persistence and refresh are managed by Supabase JS. The React `AuthContext` listens for auth-state changes, loads the RLS-protected `profiles` row, and exposes email verification state.
 
-## Flow
-
-```text
-React AuthContext
-      |
-      v
-Express /api/auth routes
-      |
-      v
-HTTP-only JWT cookie
-      |
-      v
-Authentication middleware -> User service -> mock store or MongoDB User model
-```
-
-Registration and login use `bcryptjs` password hashes. The API never returns a password or password hash. The session token is stored in an `HttpOnly`, `SameSite=Lax` cookie and is not exposed to browser JavaScript.
-
-## Endpoints
-
-- `POST /api/auth/register`: validates input, hashes the password, creates a user, and starts a session.
-- `POST /api/auth/login`: verifies credentials and starts a session.
-- `POST /api/auth/logout`: clears the session cookie.
-- `GET /api/auth/me`: returns the authenticated user's safe profile.
-- `PATCH /api/auth/me`: updates only the authenticated user's editable profile fields.
-
-Authentication failures use safe generic messages. Private user records are never addressable through another user's ID; profile access is scoped to the authenticated session.
-
-## Environment
+## Required environment
 
 ```env
-DATABASE_MODE=mock
-JWT_SECRET=replace-with-a-long-random-secret
-AUTH_COOKIE_NAME=dont_buy_it_session
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
 ```
 
-`DATABASE_MODE=mock` stores users in memory for local demonstrations. `DATABASE_MODE=mongo` persists users through the Phase 11 Mongoose model and requires both `MONGODB_URI` and `JWT_SECRET`.
+The server uses the public anon key only to validate a presented bearer token with Supabase Auth and to read the matching profile under RLS. No service-role credential is used by this phase or exposed to the frontend. `.env` is ignored by Git.
 
-## Frontend behavior
+## User journey
 
-`AuthProvider` loads `/api/auth/me` on startup. Login and registration navigate to the requested destination or dashboard. Profile, dashboard, settings, requests, listings, messages, saved items, notifications, and help are protected. The AI Assistant and Scenario Comparison remain available without authentication so the existing demo flow is preserved.
+1. Sign In is the primary auth screen; public Home and Browse remain public for the existing demo.
+2. Sign Up collects name, email, password, and confirmation, then calls Supabase `signUp` with metadata and an email redirect to `/verify-otp`.
+3. Supabase’s email confirmation link returns to `/verify-otp`. The page refreshes session/profile state and offers resend/refresh controls.
+4. After the email is confirmed, the user is redirected back to Sign In and signs in using email + password.
+5. Successful sign in creates a Supabase session and the user enters Dashboard.
+6. Password recovery uses Supabase recovery email and `updateUser({ password })`.
+
+## Profile and RLS
+
+`public.profiles.id` references `auth.users.id`. The database trigger creates/synchronizes profiles. The frontend reads/updates only through the Supabase client and RLS; it does not send user IDs to select a profile. Editable fields are full name, avatar URL, and approximate location. The optional `phone` field is retained as a nullable column for future phone verification work and is not required for the current authentication flow. See [Supabase PostgreSQL architecture](supabase-postgres-architecture.md) for the database policies and migration mapping.
+
+## Backend-protected operations
+
+Express protected routes require `Authorization: Bearer <Supabase access token>`. Middleware validates the token with Supabase Auth, loads the associated profile through the caller’s RLS-scoped anon client, and rejects users without a verified email. No custom JWT cookies or Mongo password authentication remain. Listing persistence stays on the existing mock/Mongo transition path and is not represented as migrated to Postgres yet.
+
+## Email-only setup
+
+Configure email confirmation and allowed redirect URLs in the Supabase Auth dashboard, including the local `/verify-otp` callback and production equivalent. SMS and phone OTP are intentionally deferred for a future authentication phase. The current app works with Supabase Email + Password authentication and email verification only.

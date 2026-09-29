@@ -4,7 +4,7 @@ import { ItemModel } from '../models/Item.js';
 import { ListingModel } from '../models/Listing.js';
 import { UserModel } from '../models/User.js';
 import type { AccessMethod, AccessOption, AvailabilityStatus, PriceUnit } from '../../shared/types/accessOptions.js';
-import type { PublicUser } from './authService.js';
+import type { SupabaseRequestUser } from '../types/auth.js';
 import { distanceInKm, pointForCoordinates, type Coordinates, validateCoordinates } from './locationService.js';
 
 export const listingConditions = ['New', 'Like new', 'Good', 'Fair', 'Poor', 'Well loved'] as const;
@@ -93,7 +93,7 @@ function inputCoordinates(input: ListingInput): Coordinates | null {
     return validateCoordinates({ latitude: input.latitude, longitude: input.longitude });
 }
 
-function viewFromInput(id: string, owner: PublicUser, input: ListingInput, now: string): StoredMockListing {
+function viewFromInput(id: string, owner: SupabaseRequestUser, input: ListingInput, now: string): StoredMockListing {
     const validated = validateInput(input);
     const coordinates = inputCoordinates(input);
     return { id, ownerId: owner.id, owner: { id: owner.id, name: owner.name, trustScore: owner.trustSummary.score }, item: { name: input.name.trim(), description: input.description.trim(), category: input.category.trim(), images: validated.images, condition: validated.condition, capabilities: validated.capabilities }, accessType: input.accessType, price: validated.price, priceUnit: validated.priceUnit, availability: validated.availability, availableFrom: input.availableFrom ?? null, availableUntil: input.availableUntil ?? null, location: input.location.trim(), locationCoordinates: coordinates ?? undefined, status: 'active', notes: input.notes?.trim(), createdAt: now, updatedAt: now };
@@ -105,14 +105,27 @@ function toView(value: Record<string, unknown>): ListingView {
     const ownerTrust = owner.trustSummary && typeof owner.trustSummary === 'object' ? owner.trustSummary as Record<string, unknown> : {};
     const locationPoint = value.locationPoint && typeof value.locationPoint === 'object' ? value.locationPoint as { type?: string; coordinates?: number[] } : undefined;
     const coordinates = locationPoint && Array.isArray(locationPoint.coordinates) && locationPoint.coordinates.length === 2 ? { latitude: Number(locationPoint.coordinates[1]), longitude: Number(locationPoint.coordinates[0]) } : undefined;
-    return { id: String(value._id ?? value.id), owner: { id: String(owner._id ?? owner.id ?? value.owner), name: String(owner.name ?? 'Community member'), trustScore: typeof ownerTrust.score === 'number' ? ownerTrust.score : 0 }, item: { name: String(item.name), description: String(item.description), category: String(item.category), images: Array.isArray(item.images) ? item.images as string[] : [], condition: String(item.condition) as ListingCondition, capabilities: Array.isArray(item.capabilities) ? item.capabilities as string[] : [] }, accessType: value.accessType as AccessMethod, price: Number(value.price), priceUnit: value.priceUnit as PriceUnit, availability: value.availability as AvailabilityStatus, availableFrom: typeof value.availableFrom === 'string' ? value.availableFrom : null, availableUntil: typeof value.availableUntil === 'string' ? value.availableUntil : null, location: String(value.location), locationCoordinates: coordinates, status: value.status as ListingStatus, notes: typeof value.metadata === 'object' && value.metadata ? String((value.metadata as Record<string, unknown>).notes ?? '') || undefined : undefined, createdAt: new Date(String(value.createdAt)).toISOString(), updatedAt: new Date(String(value.updatedAt)).toISOString() };
+    return { id: String(value._id ?? value.id), owner: { id: String(owner.supabaseUserId ?? owner._id ?? owner.id ?? value.owner), name: String(owner.name ?? 'Community member'), trustScore: typeof ownerTrust.score === 'number' ? ownerTrust.score : 0 }, item: { name: String(item.name), description: String(item.description), category: String(item.category), images: Array.isArray(item.images) ? item.images as string[] : [], condition: String(item.condition) as ListingCondition, capabilities: Array.isArray(item.capabilities) ? item.capabilities as string[] : [] }, accessType: value.accessType as AccessMethod, price: Number(value.price), priceUnit: value.priceUnit as PriceUnit, availability: value.availability as AvailabilityStatus, availableFrom: typeof value.availableFrom === 'string' ? value.availableFrom : null, availableUntil: typeof value.availableUntil === 'string' ? value.availableUntil : null, location: String(value.location), locationCoordinates: coordinates, status: value.status as ListingStatus, notes: typeof value.metadata === 'object' && value.metadata ? String((value.metadata as Record<string, unknown>).notes ?? '') || undefined : undefined, createdAt: new Date(String(value.createdAt)).toISOString(), updatedAt: new Date(String(value.updatedAt)).toISOString() };
+}
+
+async function ensureMongoOwner(owner: SupabaseRequestUser) {
+    return UserModel.findOneAndUpdate(
+        { supabaseUserId: owner.id },
+        { $set: { name: owner.name, email: owner.email, phone: owner.phone, trustSummary: owner.trustSummary }, $setOnInsert: { supabaseUserId: owner.id } },
+        { new: true, upsert: true, runValidators: true },
+    );
+}
+
+async function mongoOwnerId(supabaseUserId: string): Promise<string | null> {
+    const owner = await UserModel.findOne({ supabaseUserId }).select('_id').lean();
+    return owner ? String(owner._id) : null;
 }
 
 async function mongoView(listing: Record<string, unknown>): Promise<ListingView> {
     return toView(listing);
 }
 
-export async function createListing(owner: PublicUser, input: ListingInput): Promise<ListingView> {
+export async function createListing(owner: SupabaseRequestUser, input: ListingInput): Promise<ListingView> {
     const validated = validateInput(input);
     const coordinates = inputCoordinates(input);
     if (getDatabaseMode() === 'mock') {
@@ -121,8 +134,9 @@ export async function createListing(owner: PublicUser, input: ListingInput): Pro
         mockListings.set(view.id, view);
         return view;
     }
-    const item = await ItemModel.create({ name: input.name.trim(), description: input.description.trim(), category: input.category.trim(), images: validated.images, condition: validated.condition, capabilities: validated.capabilities, owner: owner.id, metadata: { itemKey: canonicalItemKey(input.name, input.category), notes: input.notes?.trim() } });
-    const listing = await ListingModel.create({ item: item._id, owner: owner.id, accessType: input.accessType, price: validated.price, priceUnit: validated.priceUnit, totalCost: validated.price, availability: validated.availability, availableFrom: input.availableFrom ?? null, availableUntil: input.availableUntil ?? null, location: input.location.trim(), locationPoint: coordinates ? pointForCoordinates(coordinates) : undefined, distanceKm: 0, condition: validated.condition, conditionScore: conditionScores[validated.condition], trustScore: owner.trustSummary.score, convenienceScore: 50, usageSuitabilityScore: 70, status: 'active', metadata: { notes: input.notes?.trim(), source: 'user' } });
+    const mongoOwner = await ensureMongoOwner(owner);
+    const item = await ItemModel.create({ name: input.name.trim(), description: input.description.trim(), category: input.category.trim(), images: validated.images, condition: validated.condition, capabilities: validated.capabilities, owner: mongoOwner._id, metadata: { itemKey: canonicalItemKey(input.name, input.category), notes: input.notes?.trim() } });
+    const listing = await ListingModel.create({ item: item._id, owner: mongoOwner._id, accessType: input.accessType, price: validated.price, priceUnit: validated.priceUnit, totalCost: validated.price, availability: validated.availability, availableFrom: input.availableFrom ?? null, availableUntil: input.availableUntil ?? null, location: input.location.trim(), locationPoint: coordinates ? pointForCoordinates(coordinates) : undefined, distanceKm: 0, condition: validated.condition, conditionScore: conditionScores[validated.condition], trustScore: owner.trustSummary.score, convenienceScore: 50, usageSuitabilityScore: 70, status: 'active', metadata: { notes: input.notes?.trim(), source: 'user' } });
     return mongoView(await ListingModel.findById(listing._id).populate('item').populate('owner').lean() as unknown as Record<string, unknown>);
 }
 
@@ -150,7 +164,9 @@ export async function listPublishedListings(query: { search?: string; category?:
 
 export async function listMyListings(ownerId: string): Promise<ListingView[]> {
     if (getDatabaseMode() === 'mock') return sortViews([...mockListings.values()].filter((listing) => listing.ownerId === ownerId), 'created');
-    const listings = await ListingModel.find({ owner: ownerId }).populate('item').populate('owner').lean();
+    const mongoId = await mongoOwnerId(ownerId);
+    if (!mongoId) return [];
+    const listings = await ListingModel.find({ owner: mongoId }).populate('item').populate('owner').lean();
     return sortViews(listings.map((listing) => toView(listing as unknown as Record<string, unknown>)), 'created');
 }
 
@@ -161,6 +177,13 @@ export async function getListing(id: string, includePrivate = false, ownerId?: s
         return includePrivate ? listing : sanitizePrivateLocationData(listing);
     }
     const filter: Record<string, unknown> = { _id: id };
+    if (includePrivate && ownerId) {
+        if (getDatabaseMode() === 'mongo') {
+            const mongoId = await mongoOwnerId(ownerId);
+            if (!mongoId) return null;
+            filter.owner = mongoId;
+        }
+    }
     if (!includePrivate) filter.status = 'active';
     const listing = await ListingModel.findOne(filter).populate('item').populate('owner').lean();
     if (!listing) return null;
@@ -175,14 +198,16 @@ export async function updateListing(id: string, ownerId: string, input: ListingU
     const merged: ListingInput = { name: input.name ?? current.item.name, description: input.description ?? current.item.description, category: input.category ?? current.item.category, images: input.images ?? current.item.images, condition: input.condition ?? current.item.condition, capabilities: input.capabilities ?? current.item.capabilities, accessType: input.accessType ?? current.accessType, price: input.price ?? current.price, priceUnit: input.priceUnit ?? current.priceUnit, availability: input.availability ?? current.availability, availableFrom: input.availableFrom ?? current.availableFrom, availableUntil: input.availableUntil ?? current.availableUntil, location: input.location ?? current.location, latitude: input.latitude, longitude: input.longitude, notes: input.notes ?? current.notes };
     const validated = validateInput(merged);
     if (getDatabaseMode() === 'mock') {
-        const updated = viewFromInput(id, { id: ownerId, name: current.owner.name, email: '', verificationStatus: 'unverified', trustSummary: { score: current.owner.trustScore, completedExchanges: 0, reviewCount: 0 }, createdAt: current.createdAt, updatedAt: current.updatedAt }, merged, new Date().toISOString());
+        const updated = viewFromInput(id, { id: ownerId, name: current.owner.name, email: '', emailVerified: false, phoneVerified: false, verificationStatus: 'pending', trustSummary: { score: current.owner.trustScore, completedExchanges: 0, reviewCount: 0 }, createdAt: current.createdAt, updatedAt: current.updatedAt }, merged, new Date().toISOString());
         updated.status = input.status ?? current.status;
         mockListings.set(id, updated);
         return updated;
     }
-    const listing = await ListingModel.findOne({ _id: id, owner: ownerId });
+    const mongoId = await mongoOwnerId(ownerId);
+    if (!mongoId) throw new Error('Listing not found.');
+    const listing = await ListingModel.findOne({ _id: id, owner: mongoId });
     if (!listing) throw new Error('Listing not found.');
-    const item = await ItemModel.findOneAndUpdate({ _id: listing.item, owner: ownerId }, { $set: { name: merged.name.trim(), description: merged.description.trim(), category: merged.category.trim(), images: validated.images, condition: validated.condition, capabilities: validated.capabilities, 'metadata.itemKey': canonicalItemKey(merged.name, merged.category), 'metadata.notes': merged.notes?.trim() } }, { new: true, runValidators: true });
+    const item = await ItemModel.findOneAndUpdate({ _id: listing.item, owner: mongoId }, { $set: { name: merged.name.trim(), description: merged.description.trim(), category: merged.category.trim(), images: validated.images, condition: validated.condition, capabilities: validated.capabilities, 'metadata.itemKey': canonicalItemKey(merged.name, merged.category), 'metadata.notes': merged.notes?.trim() } }, { new: true, runValidators: true });
     if (!item) throw new Error('Listing item not found.');
     listing.accessType = merged.accessType;
     listing.price = validated.price;
@@ -212,7 +237,9 @@ export async function removeListing(id: string, ownerId: string): Promise<void> 
         mockListings.set(id, listing);
         return;
     }
-    await ListingModel.updateOne({ _id: id, owner: ownerId }, { $set: { status: 'closed', availability: 'unavailable' } });
+    const mongoId = await mongoOwnerId(ownerId);
+    if (!mongoId) throw new Error('Listing not found.');
+    await ListingModel.updateOne({ _id: id, owner: mongoId }, { $set: { status: 'closed', availability: 'unavailable' } });
 }
 
 export function listingToAccessOption(listing: ListingView, userLocation?: Coordinates): AccessOption {

@@ -17,17 +17,18 @@ Do not commit real credentials. The service-role key must never be exposed to th
 
 ## Browser client
 
-The frontend client is created in `src/lib/supabase.ts` and is used by the auth context for sign-in, sign-up, OTP verification, session state, and logout.
+The frontend client is created in `src/lib/supabase.ts` and is used by the auth context for sign-in, sign-up, email verification, session state, and logout.
 
 ## Authentication flow
 
 1. User lands on the sign-in page.
 2. New users move to the sign-up page.
-3. Registration creates a Supabase auth user.
-4. Email verification and phone OTP are handled by Supabase Auth.
-5. After verification, the user is routed back to sign in.
+3. Registration creates a Supabase auth user with email and password.
+4. Email verification is handled by Supabase Auth.
+5. After successful email verification, the user is routed back to sign in.
 6. Successful sign in creates a Supabase session.
 7. Protected routes rely on the auth state instead of local custom JWT cookies.
+8. Phone authentication is intentionally deferred to a later phase and is not required for the current app flow.
 
 ## Profile table
 
