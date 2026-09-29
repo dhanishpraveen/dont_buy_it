@@ -37,6 +37,7 @@ export function LiveListingDetailsPage() {
     if (!listing) return <div className="py-20 text-center"><h1 className="font-display text-3xl font-semibold text-ink">Listing not found</h1><p className="mt-2 text-sm text-muted">It may have been archived or is no longer available.</p><Link to="/browse" className="mt-4 inline-block text-sm font-semibold text-bark underline">Back to browse</Link></div>;
 
     const isOwner = Boolean(user && listing.owner.id && user.id === listing.owner.id);
+    const canRequest = !isOwner && listing.status === 'active' && listing.availability !== 'unavailable';
     const image = listing.item.images[0];
     const availableFrom = dateLabel(listing.availableFrom);
     const availableUntil = dateLabel(listing.availableUntil);
@@ -54,6 +55,7 @@ export function LiveListingDetailsPage() {
                 {listing.deposit ? <p className="mt-1 text-sm text-muted">Deposit: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: listing.currency ?? 'INR' }).format(listing.deposit)}</p> : null}
                 <Card className="mt-7 p-5"><p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">Listed by</p><p className="mt-2 font-display text-xl font-semibold text-ink">{listing.owner.name}</p></Card>
                 {isOwner ? <Link to={`/listings/${listing.id}/edit`}><Button className="mt-5"><Pencil size={16} />Edit listing</Button></Link> : null}
+                {canRequest ? <Link to={`/request-access/${listing.id}`}><Button className="mt-5">{listing.accessType === 'borrow' ? 'Request to Borrow' : listing.accessType === 'rent' ? 'Request to Rent' : 'Request to Buy'}</Button></Link> : null}
             </div>
         </div>
     </div>;

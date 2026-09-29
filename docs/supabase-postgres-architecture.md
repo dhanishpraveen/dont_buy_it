@@ -9,6 +9,9 @@ The connected Supabase project `dont_buy_it` is provisioned with the relational 
 - `20260929135148_listing_price_unit`: constrained listing price units for free, per-day, per-week, and one-time offers.
 - `20260929135357_public_listing_owner_name`: anon-only profile row access for owners with ACTIVE listings; existing column grants keep private fields unavailable.
 - `20260929135435_nearby_listings_invoker` and `20260929135558_nearby_listings_definer`: the nearby RPC was restored to SECURITY DEFINER after verifying that RLS blocks direct geography access.
+- `20260929143220_access_request_exchange_lifecycle`: tightened request/exchange table grants, added pending-request uniqueness, and added authenticated lifecycle RPCs.
+- `20260929144215_lifecycle_database_guards`: database triggers enforce legal state transitions and recheck listing/date availability on acceptance.
+- `20260929144942_lifecycle_read_image_array_fix`: converts `items.images` from `text[]` to JSON before projecting its first image from lifecycle read RPCs.
 
 These files are maintained under `supabase/migrations/` and match the MCP migration history.
 
@@ -44,19 +47,27 @@ RLS is enabled on all eight application tables.
 - Authenticated profile reads/updates are restricted to the signed-in profile owner; an anon-only policy exposes rows only for owners with an ACTIVE listing. Anon column grants exclude email, phone, bio, and verification timestamps.
 - Items are visible to their owner or where an active listing exists. Item changes require ownership.
 - Active listings are discoverable. Owners can manage their own listings; insert/update checks require item ownership.
-- Access requests are visible to participants. New requests must be PENDING, match the listing owner and access type, and target an active listing.
-- Exchanges are visible to the recorded owner/borrower only. Client writes are not granted yet.
+- Access requests are visible to requester/owner participants. Direct client INSERT/UPDATE is revoked; authenticated callers use RPCs that derive requester from `auth.uid()` and owner/access type/pricing from the listing.
+- Exchanges are visible to recorded owner/borrower participants. Direct client INSERT/UPDATE is revoked; lifecycle mutations are authorized by participant-specific RPCs.
 - Reviews are visible to participants; creation requires a completed exchange and participant relationship.
 - Trust history is owner-readable and server-managed.
 - Notifications are owner-readable and clients can update only the read flag.
 
-The `nearby_listings` RPC is intentionally `SECURITY DEFINER` so callers can calculate distance without `SELECT` access to raw geography. It has a fixed empty search path, validates coordinate/radius/limit/filter inputs, returns only active listing details, area, public owner display name and distance, and never returns coordinates. Supabase's security advisor flags public execution; this warning remains an intentional tradeoff for nearby discovery and should be reviewed if that requirement changes.
+The `nearby_listings` RPC is intentionally `SECURITY DEFINER` so callers can calculate distance without `SELECT` access to raw geography. It has a fixed empty search path, validates coordinate/radius/limit/filter inputs, returns only active listing details, area, public owner display name and distance, and never returns coordinates. The lifecycle RPCs are also `SECURITY DEFINER` because table write grants are revoked; each checks `auth.uid()`, participant/owner role, and allowed state, uses an empty search path, and is granted only to `authenticated`. The trigger guard function is not executable by client roles. Supabase's advisor reports these deliberate RPCs as callable security-definer functions; this warning is retained for review rather than hidden. See [anon security-definer warning](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable) and [authenticated security-definer warning](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable).
 
 ## Location and nearby discovery
 
 `public.nearby_listings(longitude, latitude, radius_km, category, access_type, availability, limit)` uses PostGIS `ST_DWithin` and `ST_Distance`. It validates longitude/latitude ranges, radius up to 100 km and limit up to 100, filters active/available listings, sorts nearest-first and returns `distance_meters`. The RPC returned an empty result successfully because the project currently has no listings.
 
 Exact listing geography is not selectable by `anon` or `authenticated`; public location output is the `location_area` string and computed distance only.
+
+## Request and exchange lifecycle
+
+Existing `access_requests` and `exchanges` tables are reused. A partial unique index prevents duplicate PENDING requests by the same requester for a listing while retaining historical requests. `decide_access_request` locks the request and listing, rechecks ACTIVE/availability and accepted date conflicts, creates an exchange, and changes the request to ACCEPTED atomically. The RPC and a database trigger both reject overlapping BORROW/RENT periods; accepted ranges are half-open, and non-overlapping periods remain valid.
+
+The state guards allow PENDING to ACCEPTED/REJECTED/CANCELLED and ACCEPTED to COMPLETED; exchanges progress through handover/receipt and, for BORROW/RENT only, return. Purchase receipt completes the request/exchange and sets the listing status to SOLD. All lifecycle RPCs derive the caller from `auth.uid()`, use an empty `search_path`, and have EXECUTE revoked from `public`/`anon` with an explicit grant to `authenticated`. They use SECURITY DEFINER because direct writes are intentionally revoked; the functions perform explicit ownership, participant, state, and input checks. The transition trigger function is not callable directly by client roles.
+
+The Express API exposes `/api/requests`, `/api/requests/received`, `/api/requests/:id`, and `/api/exchanges/:id`; the React app uses protected `/requests`, `/requests/received`, `/requests/:id`, `/request-access/:listingId`, and `/exchanges/:id` routes. Recommendations remain advisory and only link to a preselected request form; no request is automatically submitted. Payment, messaging, and notifications are not implemented.
 
 ## Storage
 
@@ -76,4 +87,4 @@ When Supabase URL and anon key are configured, the server selects Supabase unles
 
 ## Empty project state / setup notes
 
-The project currently has two profile rows and zero items or listings. No demo listing rows were created during implementation. Because there are no existing listings and no authenticated browser session was used, live create/update/archive behavior has not been end-to-end exercised against a real user; route authorization, schema constraints, grants, and RLS policies were inspected separately. Supabase Auth leaked-password protection is disabled in project settings and should be enabled in the Supabase dashboard.
+The project currently has two profile rows and zero items, listings, access requests, or exchanges. No demo transaction rows were created. Schema, policies, grants, indexes, functions, and advisor output were inspected through MCP; authenticated empty-list reads were exercised in the browser, but transaction mutations were not exercised end-to-end with a signed-in listing/request pair. Supabase Auth leaked-password protection is disabled in project settings and should be enabled in the Supabase dashboard.

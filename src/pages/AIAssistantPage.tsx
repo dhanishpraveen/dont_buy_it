@@ -7,7 +7,7 @@ import {
     BarChart3,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useRequirement } from "../context/RequirementContext";
 import { buildDecisionResult } from "../services/decisionService";
 import { analyzeUserNeed, type AnalyzeSource } from "../services/llmService";
@@ -25,6 +25,7 @@ import { Card } from "../components/ui/Card";
 import { Divider } from "../components/ui/Divider";
 import { RecommendationPanel } from "../components/recommendation/RecommendationPanel";
 import { useLocationContext } from "../context/LocationContext";
+import { isListingUuid } from "../lib/listingFormat";
 
 const examples = [
     "I need a projector for tomorrow's college event.",
@@ -264,7 +265,14 @@ function CandidateOptions({
                     {visibleOptions.length ? (
                         <div className="mt-5 grid gap-4">
                             {visibleOptions.map((option) => (
-                                <AccessOptionCard key={option.id} option={option} />
+                                <div key={option.id}>
+                                    <AccessOptionCard option={option} />
+                                    {isListingUuid(option.id) ? (
+                                        <Link to={`/request-access/${encodeURIComponent(option.id)}`} className="mt-3 inline-flex">
+                                            <Button variant="outline">Request this option</Button>
+                                        </Link>
+                                    ) : null}
+                                </div>
                             ))}
                         </div>
                     ) : (

@@ -3,6 +3,10 @@ import express from "express";
 import { connectToDatabase, getDatabaseMode } from "./config/database.js";
 import { attachUser } from "./middleware/auth.js";
 import { listingsRouter, myListingsRouter } from "./routes/listings.js";
+import {
+  accessRequestsRouter,
+  exchangesRouter,
+} from "./routes/accessRequests.js";
 import { analyzeRequirement } from "./services/llm/requirementAnalyzer.js";
 import {
   getAccessOptionById,
@@ -29,26 +33,24 @@ app.use(express.json());
 app.use(attachUser);
 app.use("/api/listings", listingsRouter);
 app.use("/api/users/me/listings", myListingsRouter);
+app.use("/api/requests", accessRequestsRouter);
+app.use("/api/exchanges", exchangesRouter);
 
 app.post("/api/ai/analyze", async (request, response) => {
   const text =
     typeof request.body?.text === "string" ? request.body.text.trim() : "";
   if (!text) {
-    response
-      .status(400)
-      .json({
-        success: false,
-        error: "Tell us what you need before analyzing.",
-      });
+    response.status(400).json({
+      success: false,
+      error: "Tell us what you need before analyzing.",
+    });
     return;
   }
   if (text.length > 1000) {
-    response
-      .status(400)
-      .json({
-        success: false,
-        error: "Please keep your request under 1,000 characters.",
-      });
+    response.status(400).json({
+      success: false,
+      error: "Please keep your request under 1,000 characters.",
+    });
     return;
   }
 
@@ -61,12 +63,10 @@ app.post("/api/ai/analyze", async (request, response) => {
       fallbackReason: result.fallbackReason,
     });
   } catch {
-    response
-      .status(500)
-      .json({
-        success: false,
-        error: "We could not understand that request. Please try again.",
-      });
+    response.status(500).json({
+      success: false,
+      error: "We could not understand that request. Please try again.",
+    });
   }
 });
 
@@ -94,12 +94,10 @@ app.post("/api/resources/match", async (request, response) => {
       data: await getAccessOptionsForRequest(requirement),
     });
   } catch {
-    response
-      .status(500)
-      .json({
-        success: false,
-        error: "We could not retrieve matching access options.",
-      });
+    response.status(500).json({
+      success: false,
+      error: "We could not retrieve matching access options.",
+    });
   }
 });
 
@@ -131,15 +129,13 @@ app.get("/api/resources/nearby", async (request, response) => {
     });
     response.json({ success: true, data, mode: getDatabaseMode() });
   } catch (error) {
-    response
-      .status(400)
-      .json({
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "We could not retrieve nearby resources.",
-      });
+    response.status(400).json({
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "We could not retrieve nearby resources.",
+    });
   }
 });
 
@@ -172,12 +168,10 @@ app.get("/api/resources/:id", async (request, response) => {
 app.post("/api/ai/explain", async (request, response) => {
   const data = request.body?.data as ExplanationData | undefined;
   if (!data || typeof data !== "object") {
-    response
-      .status(400)
-      .json({
-        success: false,
-        error: "Deterministic explanation data is required.",
-      });
+    response.status(400).json({
+      success: false,
+      error: "Deterministic explanation data is required.",
+    });
     return;
   }
   try {
@@ -215,12 +209,10 @@ app.use(
       typeof error.status === "number"
         ? error.status
         : 500;
-    response
-      .status(status)
-      .json({
-        success: false,
-        error: "The API could not process that request.",
-      });
+    response.status(status).json({
+      success: false,
+      error: "The API could not process that request.",
+    });
   },
 );
 

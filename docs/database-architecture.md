@@ -2,7 +2,7 @@
 
 ## Supabase schema
 
-The connected Supabase/Postgres project now contains the relational foundation in [supabase-postgres-architecture.md](supabase-postgres-architecture.md). Supabase Auth identities map to `profiles`; items, listings, requests, exchanges, reviews, trust events, and notifications use UUID-based tables. The current Mongo/mock APIs remain transitional and have not been data-migrated or redirected. No existing Supabase data was dropped or demo data seeded.
+The connected Supabase/Postgres project contains the relational foundation and real item/listing/request/exchange flows documented in [supabase-postgres-architecture.md](supabase-postgres-architecture.md). Supabase Auth identities map to `profiles`; transaction state is owned by authenticated lifecycle RPCs and participant RLS. Mongo/mock paths remain explicit development/legacy modes. No existing Supabase data was dropped or demo transaction data seeded.
 
 Applied migrations are maintained under `supabase/migrations/`.
 
@@ -26,8 +26,8 @@ MONGODB_URI=
 - `users`: profile, verification status, and deterministic trust summary.
 - `items`: physical resources owned by a user.
 - `listings`: current access offers for an item, including borrow, rent, buy-used, and buy-new.
-- `accessrequests`: future request lifecycle foundation.
-- `exchanges`: future handover and return lifecycle foundation.
+- `accessrequests`: request lifecycle, participant references, dates, optional message, and status.
+- `exchanges`: accepted request handover, receipt, return, and completion state.
 - `reviews`: bounded ratings linked to an exchange and users.
 - `trusthistories`: extensible deterministic trust events.
 - `notifications`: future user notification records.
@@ -46,9 +46,9 @@ resource service -> mock data OR MongoDB repository
 AccessOption -> deterministic scoring -> ownership -> recommendation
 ```
 
-The scoring, ownership, recommendation, Gemini, and frontend contracts are unchanged. MongoDB only replaces the resource data source when explicitly enabled.
+The scoring, ownership, recommendation, and Gemini contracts are unchanged. Supabase is selected when configured; MongoDB and deterministic mocks remain explicit development modes. Recommendations are advisory and never create requests automatically.
 
-Authentication is implemented with bcrypt password hashes and HTTP-only JWT cookies. User passwords and hashes are never returned by the API. In mock mode, auth data is held in memory for local demos; Mongo mode persists users in the `users` collection.
+User authentication is handled by Supabase Auth for Supabase-backed product flows. The server verifies bearer tokens before protected request/exchange operations. Legacy mock/Mongo authentication paths remain separate and are not used for transaction authorization.
 
 ## Seed data
 

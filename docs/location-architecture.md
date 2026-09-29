@@ -8,7 +8,7 @@ Location is treated as one input in the access-decision pipeline. It helps narro
 
 - Public listing responses do not expose exact private coordinates or home addresses.
 - Users may provide approximate locations or browser-derived coordinates without exposing them publicly.
-- Exact exchange details remain out of scope for this phase and are not exposed in public APIs.
+- Request and exchange details are available only to their requester/owner participants; they expose the listing's safe `location_area`, never private geography.
 - The frontend uses approximate location metadata only for discovery and distance calculations.
 
 ## User location

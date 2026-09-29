@@ -17,11 +17,15 @@ import { ProtectedRoute } from './components/navigation/ProtectedRoute';
 import { LiveAddItemPage as AddItemPage } from './pages/LiveAddItemPage';
 import { LiveMyListingsPage as MyListingsPage } from './pages/LiveMyListingsPage';
 import { LiveListingDetailsPage as ListingDetailsPage } from './pages/LiveListingDetailsPage';
+import { RequestAccessPage } from './pages/RequestAccessPage';
+import { MyRequestsPage } from './pages/MyRequestsPage';
+import { ReceivedRequestsPage } from './pages/ReceivedRequestsPage';
+import { RequestDetailsPage } from './pages/RequestDetailsPage';
+import { ExchangeDetailsPage } from './pages/ExchangeDetailsPage';
 
 const authenticatedRoutes = [
     { path: '/dashboard', title: 'Dashboard' },
     { path: '/browse', title: 'Browse' },
-    { path: '/requests', title: 'My Requests' },
     { path: '/listings', title: 'My Listings' },
     { path: '/messages', title: 'Messages' },
     { path: '/saved', title: 'Saved Items' },
@@ -56,7 +60,12 @@ export function App() {
                     <Route path="/listings" element={<ProtectedRoute><MyListingsPage /></ProtectedRoute>} />
                     <Route path="/listings/:id/edit" element={<ProtectedRoute><AddItemPage /></ProtectedRoute>} />
                     <Route path="/listing/:id" element={<ListingDetailsPage />} />
-                    {authenticatedRoutes.filter((route) => !['/dashboard', '/browse', '/listings'].includes(route.path)).map((route) => <Route key={route.path} path={route.path} element={<ProtectedRoute><RoutePlaceholder title={route.title} /></ProtectedRoute>} />)}
+                    <Route path="/request-access/:listingId" element={<ProtectedRoute><RequestAccessPage /></ProtectedRoute>} />
+                    <Route path="/requests/received" element={<ProtectedRoute><ReceivedRequestsPage /></ProtectedRoute>} />
+                    <Route path="/requests/:id" element={<ProtectedRoute><RequestDetailsPage /></ProtectedRoute>} />
+                    <Route path="/requests" element={<ProtectedRoute><MyRequestsPage /></ProtectedRoute>} />
+                    <Route path="/exchanges/:id" element={<ProtectedRoute><ExchangeDetailsPage /></ProtectedRoute>} />
+                    {authenticatedRoutes.filter((route) => !['/dashboard', '/browse', '/listings', '/requests'].includes(route.path)).map((route) => <Route key={route.path} path={route.path} element={<ProtectedRoute><RoutePlaceholder title={route.title} /></ProtectedRoute>} />)}
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

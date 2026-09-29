@@ -1,4 +1,4 @@
-import { HelpCircle, Home, LayoutGrid, ListChecks, MessageCircle, Settings, Users, X, Heart, Sparkles, BarChart3 } from 'lucide-react';
+import { HelpCircle, Home, Inbox, LayoutGrid, ListChecks, MessageCircle, Settings, Users, X, Heart, Sparkles, BarChart3 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { IconButton } from '../ui/IconButton';
 
@@ -10,6 +10,7 @@ const navigation = [
     { label: 'Scenario Comparison', to: '/scenario-comparison', icon: BarChart3 },
     { label: 'Browse', to: '/browse', icon: LayoutGrid },
     { label: 'My Requests', to: '/requests', icon: ListChecks },
+    { label: 'Requests Received', to: '/requests/received', icon: Inbox },
     { label: 'My Listings', to: '/listings', icon: LayoutGrid },
     { label: 'Messages', to: '/messages', icon: MessageCircle },
     { label: 'Saved', to: '/saved', icon: Heart },

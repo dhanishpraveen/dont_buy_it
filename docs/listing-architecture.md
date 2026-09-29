@@ -36,3 +36,33 @@ Nearby candidate retrieval uses `nearby_listings` and maps its `distance_meters`
 ## Images and remaining demo data
 
 The create form accepts up to six HTTP(S) image URLs. The existing private `listing-images` bucket is not wired to an upload flow; no image upload or signed-URL management is claimed. Static catalog data remains in unit tests, explicit mock mode, and legacy unused prototype modules, but is not used by the active Browse, Dashboard, My Listings, or Supabase decision paths.
+
+## Access request and exchange lifecycle
+
+The existing `public.access_requests` and `public.exchanges` tables are used; no duplicate lifecycle tables are created. A request records a listing snapshot reference, requester (from `auth.uid()`), owner (looked up from the listing), access type, requested period, optional message, listed price/deposit, and state. The client cannot choose requester, owner, price, or access type.
+
+Request states are `PENDING`, `ACCEPTED`, `REJECTED`, `CANCELLED`, and `COMPLETED`. Only `PENDING` can become `ACCEPTED`, `REJECTED`, or `CANCELLED`; only `ACCEPTED` can become `COMPLETED`. Database triggers enforce these transitions. A partial unique index prevents more than one pending request per requester/listing while preserving historical rows.
+
+Exchange states are `PENDING_HANDOVER`, `HANDED_OVER`, `IN_USE`, `RETURN_PENDING`, `RETURNED`, `COMPLETED`, and `CANCELLED`. `decide_access_request` locks the request and listing, validates the owner and pending status, rechecks availability, inserts the exchange, and accepts the request atomically. Accepted BORROW/RENT periods are checked as half-open `tstzrange` intervals under a listing row lock; non-overlapping periods remain acceptable. The database trigger repeats the acceptance checks.
+
+`advance_exchange` permits only participant-specific transitions: owner confirms handover; requester confirms receipt; only BORROW/RENT can request and confirm return. BUY_USED/BUY_NEW complete at receipt and mark the listing `SOLD`. No price is collected, no payment is processed, and no request automatically follows a recommendation. The requester explicitly confirms the request form.
+
+All request/exchange reads and writes go through verified-token API routes and narrowly granted RPC functions. Direct client INSERT/UPDATE grants are revoked. RPCs derive identity from `auth.uid()`, validate role/state, use a fixed empty search path, and are executable only by `authenticated`. Participant detail reads expose safe names and `location_area`, never private coordinates, phone, or email.
+
+```mermaid
+flowchart TD
+	A[User selects a listing] --> B[Explicit request form]
+	B --> C[PENDING access request]
+	C -->|Owner rejects| D[REJECTED]
+	C -->|Requester cancels| E[CANCELLED]
+	C -->|Owner accepts atomically| F[PENDING_HANDOVER exchange]
+	F --> G[Owner confirms handover]
+	G --> H[Requester confirms receipt]
+	H -->|BORROW or RENT| I[IN_USE]
+	I --> J[Requester returns]
+	J --> K[Owner confirms return]
+	K --> L[COMPLETED]
+	H -->|BUY_USED or BUY_NEW| M[COMPLETED and listing SOLD]
+```
+
+Payment gateways, messaging/chat, and notification delivery are out of scope. No authenticated transaction mutations have been exercised against a signed-in production user; the connected project currently has no request or exchange rows.
