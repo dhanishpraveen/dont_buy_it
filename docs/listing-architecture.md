@@ -8,7 +8,7 @@ An `Item` is the physical resource: name, description, category, brand/model, im
 
 ## Ownership and RLS
 
-Protected Express routes verify the Supabase bearer token in `attachUser`. They pass that same token to a request-scoped anon-key client, so PostgreSQL evaluates `auth.uid()` and the existing RLS policies. The service derives `owner_id` from the verified request identity and ignores owner IDs in request bodies. Item insert/update policies require the owner; listing insert/update policies require the authenticated listing and item owner. Public reads are limited to ACTIVE listings. Owners can read and update their own non-public statuses. No service-role key is used by listing routes.
+Protected Express routes verify the Supabase bearer token in `attachUser`. They pass that same token to a request-scoped anon-key client, so PostgreSQL evaluates `auth.uid()` and the existing RLS policies. The service derives `owner_id` from the verified request identity and ignores owner IDs in request bodies. Item insert/update policies require the owner; listing insert/update policies require the authenticated listing owner and call the private `owns_item` helper for the item check. Public reads are limited to ACTIVE listings. Owners can read and update their own non-public statuses. No service-role key is used by listing routes.
 
 Public profile joins are limited to rows with an ACTIVE listing and use existing anon column grants; email, phone, bio, and verification fields are not selected or granted to anon. Exact geography is write-only through normal table access. The nearby RPC runs as SECURITY DEFINER with a fixed empty search path and validated parameters because callers cannot select geography; it returns computed distance, never coordinates.
 

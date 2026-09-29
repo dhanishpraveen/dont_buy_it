@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import request from "supertest";
 import { app } from "../index.js";
+import * as listingService from "../services/listingService.js";
+import { ListingDatabaseError } from "../services/supabaseListingService.js";
 import type { SupabaseRequestUser } from "../types/auth.js";
 
 const { usersByToken, resolveSupabaseUser } = vi.hoisted(() => {
@@ -69,17 +71,57 @@ beforeEach(() => {
 });
 
 describe("listing API with Supabase request identity", () => {
+  it("returns structured database diagnostics only outside production", async () => {
+    const owner = authed(verifiedAgent("Diagnostic Owner"));
+    const originalNodeEnv = process.env.NODE_ENV;
+    const createListingSpy = vi
+      .spyOn(listingService, "createListing")
+      .mockRejectedValue(
+        new ListingDatabaseError(
+          "We could not publish this listing.",
+          "42P17",
+          'infinite recursion detected in policy for relation "listings"',
+        ),
+      );
+
+    try {
+      process.env.NODE_ENV = "development";
+      const development = await owner
+        .post("/api/listings")
+        .send(listingInput)
+        .expect(400);
+      expect(development.body).toMatchObject({
+        error: "We could not publish this listing.",
+        code: "42P17",
+        details:
+          'infinite recursion detected in policy for relation "listings"',
+      });
+
+      process.env.NODE_ENV = "production";
+      const production = await owner
+        .post("/api/listings")
+        .send(listingInput)
+        .expect(400);
+      expect(production.body).toEqual({
+        success: false,
+        error: "We could not publish the listing. Please try again.",
+      });
+    } finally {
+      createListingSpy.mockRestore();
+      if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = originalNodeEnv;
+    }
+  });
+
   it("rejects unauthenticated creation and invalid pricing", async () => {
     await request(app).post("/api/listings").send(listingInput).expect(401);
     const owner = authed(verifiedAgent("Price Owner"));
-    const response = await owner
-      .post("/api/listings")
-      .send({
-        ...listingInput,
-        accessType: "borrow",
-        price: 100,
-        priceUnit: "one-time",
-      });
+    const response = await owner.post("/api/listings").send({
+      ...listingInput,
+      accessType: "borrow",
+      price: 100,
+      priceUnit: "one-time",
+    });
     expect(response.status).toBe(400);
     expect(response.body.error).toContain("price of zero");
   });

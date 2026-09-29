@@ -37,7 +37,7 @@ export type ListingView = {
 
 type ListingResponse =
   | { success: true; data: ListingView | ListingView[] }
-  | { success: false; error?: string };
+  | { success: false; error?: string; code?: string; details?: string };
 export type ListingQuery = {
   search?: string;
   category?: string;
@@ -69,7 +69,11 @@ async function request(
     throw new Error(
       payload.success
         ? "Listing request failed."
-        : (payload.error ?? "Listing request failed."),
+        : payload.error
+          ? import.meta.env.DEV && payload.details
+            ? `${payload.error} (${payload.code ?? "database"}: ${payload.details})`
+            : payload.error
+          : "Listing request failed.",
     );
   return payload.data;
 }

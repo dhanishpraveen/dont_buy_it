@@ -8,6 +8,7 @@ import {
   removeListing,
   updateListing,
 } from "../services/listingService.js";
+import { ListingDatabaseError } from "../services/supabaseListingService.js";
 
 const router = Router();
 
@@ -78,15 +79,24 @@ router.post("/", requireAuth, async (request, response) => {
     );
     response.status(201).json({ success: true, data: listing });
   } catch (error) {
-    response
-      .status(400)
-      .json({
-        success: false,
-        error:
-          error instanceof Error
+    const persistenceError = error instanceof ListingDatabaseError;
+    const development = process.env.NODE_ENV !== "production";
+    response.status(400).json({
+      success: false,
+      error:
+        persistenceError && !development
+          ? "We could not publish the listing. Please try again."
+          : error instanceof Error
             ? error.message
             : "We could not create this listing.",
-      });
+      ...(persistenceError && development
+        ? {
+            code: error.code ?? "SUPABASE_ERROR",
+            details:
+              error.diagnostic ?? "Supabase rejected the database operation.",
+          }
+        : {}),
+    });
   }
 });
 

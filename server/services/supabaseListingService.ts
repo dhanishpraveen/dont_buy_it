@@ -157,12 +157,47 @@ function toView(
   };
 }
 
+export class ListingDatabaseError extends Error {
+  constructor(
+    message: string,
+    readonly code: string | undefined,
+    readonly diagnostic: string | undefined,
+  ) {
+    super(message);
+    this.name = "ListingDatabaseError";
+  }
+}
+
 function dbError(error: unknown, fallback: string): never {
-  console.error(
-    "[Supabase listings]",
-    error instanceof Error ? error.message : "Unknown database error",
+  const value =
+    error && typeof error === "object"
+      ? (error as { code?: unknown; message?: unknown })
+      : {};
+  const code = typeof value.code === "string" ? value.code : undefined;
+  const rawMessage =
+    typeof value.message === "string"
+      ? value.message
+      : "Unknown database error";
+  const diagnostic = rawMessage
+    .replace(
+      /(authorization|access[_ -]?token|password|secret)\s*[:=]\s*[^\s,;]+/gi,
+      "$1=[redacted]",
+    )
+    .slice(0, 500);
+
+  if (process.env.NODE_ENV !== "production") {
+    console.error("[Supabase listings]", {
+      code: code ?? "UNKNOWN",
+      message: diagnostic,
+    });
+  } else {
+    console.error("[Supabase listings]", code ?? "UNKNOWN");
+  }
+  throw new ListingDatabaseError(
+    fallback,
+    code,
+    process.env.NODE_ENV !== "production" ? diagnostic : undefined,
   );
-  throw new Error(fallback);
 }
 
 function userClient(accessToken: string | undefined) {
@@ -400,11 +435,19 @@ export async function createSupabaseListing(
     .select(listingSelection)
     .single();
   if (error || !data) {
-    await client
+    const { error: cleanupError } = await client
       .from("items")
       .delete()
       .eq("id", item.id)
       .eq("owner_id", ownerId);
+    if (cleanupError) {
+      const cleanupCode =
+        typeof cleanupError.code === "string" ? cleanupError.code : "UNKNOWN";
+      console.error(
+        "[Supabase listings] item compensation failed",
+        cleanupCode,
+      );
+    }
     dbError(error, "We could not publish this listing.");
   }
   const listing = toView(data as unknown as DatabaseListing, true);

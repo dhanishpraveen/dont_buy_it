@@ -12,6 +12,7 @@ The connected Supabase project `dont_buy_it` is provisioned with the relational 
 - `20260929143220_access_request_exchange_lifecycle`: tightened request/exchange table grants, added pending-request uniqueness, and added authenticated lifecycle RPCs.
 - `20260929144215_lifecycle_database_guards`: database triggers enforce legal state transitions and recheck listing/date availability on acceptance.
 - `20260929144942_lifecycle_read_image_array_fix`: converts `items.images` from `text[]` to JSON before projecting its first image from lifecycle read RPCs.
+- `20260929150438_break_listing_item_rls_recursion`: replaces recursive cross-table ownership policy checks with a private, authenticated-only item ownership helper.
 
 These files are maintained under `supabase/migrations/` and match the MCP migration history.
 
@@ -46,7 +47,7 @@ RLS is enabled on all eight application tables.
 
 - Authenticated profile reads/updates are restricted to the signed-in profile owner; an anon-only policy exposes rows only for owners with an ACTIVE listing. Anon column grants exclude email, phone, bio, and verification timestamps.
 - Items are visible to their owner or where an active listing exists. Item changes require ownership.
-- Active listings are discoverable. Owners can manage their own listings; insert/update checks require item ownership.
+- Active listings are discoverable. Owners can manage their own listings; listing insert/update checks call `private.owns_item(uuid)` so the policies do not recurse between `listings` and `items`. The private schema is not exposed; anon cannot use it, and authenticated execution still compares the item owner to `auth.uid()`.
 - Access requests are visible to requester/owner participants. Direct client INSERT/UPDATE is revoked; authenticated callers use RPCs that derive requester from `auth.uid()` and owner/access type/pricing from the listing.
 - Exchanges are visible to recorded owner/borrower participants. Direct client INSERT/UPDATE is revoked; lifecycle mutations are authorized by participant-specific RPCs.
 - Reviews are visible to participants; creation requires a completed exchange and participant relationship.
@@ -88,3 +89,7 @@ When Supabase URL and anon key are configured, the server selects Supabase unles
 ## Empty project state / setup notes
 
 The project currently has two profile rows and zero items, listings, access requests, or exchanges. No demo transaction rows were created. Schema, policies, grants, indexes, functions, and advisor output were inspected through MCP; authenticated empty-list reads were exercised in the browser, but transaction mutations were not exercised end-to-end with a signed-in listing/request pair. Supabase Auth leaked-password protection is disabled in project settings and should be enabled in the Supabase dashboard.
+
+## Listing creation troubleshooting
+
+PostgREST logs recorded SQLSTATE `42P17` (`infinite recursion detected in policy for relation "listings"`) during listing creation. The listing INSERT/UPDATE policies queried `items` for ownership while the item SELECT policy queried `listings` for active publication, creating a circular RLS evaluation. The fix keeps both ownership checks: an unexposed `private.owns_item` SECURITY DEFINER helper checks `items.owner_id = auth.uid()` with an empty `search_path`, and authenticated is the only client role granted schema usage/function execution. The service still creates the item first and compensates by deleting that owner-scoped item if listing creation fails. After applying the migration, public `GET /api/listings` returned HTTP 200 with the real empty result rather than an RLS recursion error. No authenticated create was attempted against the production account.
