@@ -10,6 +10,7 @@ import { ItemDetailsPage } from './pages/ItemDetailsPage';
 import { AIAssistantPage } from './pages/AIAssistantPage';
 import { ScenarioComparisonPage } from './pages/ScenarioComparisonPage';
 import { AuthPage } from './pages/AuthPage';
+import { OtpVerificationPage } from './pages/OtpVerificationPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ProtectedRoute } from './components/navigation/ProtectedRoute';
 import { AddItemPage } from './pages/AddItemPage';
@@ -38,6 +39,7 @@ export function App() {
                     <Route path="/about" element={<RoutePlaceholder title="About" />} />
                     <Route path="/login" element={<AuthPage mode="login" />} />
                     <Route path="/signup" element={<AuthPage mode="register" />} />
+                    <Route path="/verify-otp" element={<OtpVerificationPage />} />
                 </Route>
                 <Route path="/community" element={<CommunityRoute />} />
                 <Route element={<AuthenticatedLayout />}>

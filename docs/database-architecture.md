@@ -1,5 +1,11 @@
 # Database Architecture
 
+## Supabase schema
+
+The connected Supabase/Postgres project now contains the relational foundation in [supabase-postgres-architecture.md](supabase-postgres-architecture.md). Supabase Auth identities map to `profiles`; items, listings, requests, exchanges, reviews, trust events, and notifications use UUID-based tables. The current Mongo/mock APIs remain transitional and have not been data-migrated or redirected. No existing Supabase data was dropped or demo data seeded.
+
+Applied migrations are maintained under `supabase/migrations/`.
+
 Phase 11 introduces an optional MongoDB/Mongoose persistence foundation. The existing demo remains deterministic and uses mock data by default.
 
 ## Runtime modes
