@@ -12,6 +12,14 @@ export type NotificationRecord = {
   created_at: string;
 };
 
+async function getCurrentUserId(): Promise<string | null> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user?.id) {
+    return null;
+  }
+  return data.user.id;
+}
+
 export function buildNotificationUrl(
   notification: Pick<NotificationRecord, "reference_type" | "reference_id">,
 ): string {
@@ -46,9 +54,15 @@ export function formatRelativeTime(value: string): string {
 }
 
 export async function getNotifications(): Promise<NotificationRecord[]> {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    return [];
+  }
+
   const { data, error } = await supabase
     .from("notifications")
     .select("*")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -59,9 +73,15 @@ export async function getNotifications(): Promise<NotificationRecord[]> {
 }
 
 export async function getUnreadNotificationCount(): Promise<number> {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    return 0;
+  }
+
   const { count, error } = await supabase
     .from("notifications")
     .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
     .eq("is_read", false);
 
   if (error) {
@@ -72,10 +92,16 @@ export async function getUnreadNotificationCount(): Promise<number> {
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    return;
+  }
+
   const { error } = await supabase
     .from("notifications")
     .update({ is_read: true })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", userId);
 
   if (error) {
     throw new Error(error.message);
@@ -83,9 +109,15 @@ export async function markNotificationRead(id: string): Promise<void> {
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    return;
+  }
+
   const { error } = await supabase
     .from("notifications")
     .update({ is_read: true })
+    .eq("user_id", userId)
     .eq("is_read", false);
 
   if (error) {

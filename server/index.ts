@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { connectToDatabase, getDatabaseMode } from "./config/database.js";
 import { attachUser } from "./middleware/auth.js";
+import { createRateLimiter } from "./middleware/rateLimit.js";
 import { listingsRouter, myListingsRouter } from "./routes/listings.js";
 import {
   accessRequestsRouter,
@@ -29,8 +30,25 @@ if (process.env.PORT && Number(process.env.PORT) !== port) {
   throw new Error("The backend must run on PORT=3000.");
 }
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 app.use(attachUser);
+app.use(
+  "/api/ai/analyze",
+  createRateLimiter({
+    maxRequests: 10,
+    windowMs: 60_000,
+    message:
+      "Too many AI analysis requests. Please wait a minute and try again.",
+  }),
+);
+app.use(
+  "/api/resources/match",
+  createRateLimiter({
+    maxRequests: 30,
+    windowMs: 60_000,
+    message: "Too many resource lookups. Please wait a moment and try again.",
+  }),
+);
 app.use("/api/listings", listingsRouter);
 app.use("/api/users/me/listings", myListingsRouter);
 app.use("/api/requests", accessRequestsRouter);

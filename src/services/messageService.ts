@@ -22,7 +22,20 @@ export type MessageRecord = {
   } | null;
 };
 
+async function getCurrentUserId(): Promise<string | null> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user?.id) {
+    return null;
+  }
+  return data.user.id;
+}
+
 export async function getConversations(): Promise<ConversationRecord[]> {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    return [];
+  }
+
   const { data, error } = await supabase
     .from("conversations")
     .select("*")
@@ -38,6 +51,11 @@ export async function getConversations(): Promise<ConversationRecord[]> {
 export async function getConversationMessages(
   conversationId: string,
 ): Promise<MessageRecord[]> {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    return [];
+  }
+
   const { data, error } = await supabase
     .from("messages")
     .select("*, sender:profiles(id, full_name, avatar_url)")
@@ -58,8 +76,7 @@ export async function sendMessage(
   const trimmed = content.trim();
   if (!trimmed) return;
 
-  const { data: sessionData } = await supabase.auth.getUser();
-  const userId = sessionData.user?.id;
+  const userId = await getCurrentUserId();
   if (!userId) {
     throw new Error("You must be signed in to send messages.");
   }
