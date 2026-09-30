@@ -85,6 +85,8 @@ export const cacheTtl = {
   myListings: 90 * 1000,
   requests: 45 * 1000,
   exchanges: 45 * 1000,
+  notifications: 60 * 1000,
+  conversations: 60 * 1000,
 } as const;
 
 function privateKey(userId: string, key: string) {
@@ -111,6 +113,8 @@ export const cacheKeys = {
     privateKey(userId, `request-detail:v1:${id}`),
   exchange: (userId: string, id: string) =>
     privateKey(userId, `exchange-detail:v1:${id}`),
+  notifications: (userId: string) => privateKey(userId, "notifications:v1"),
+  conversations: (userId: string) => privateKey(userId, "conversations:v1"),
 };
 
 export function invalidateListingCaches(): void {

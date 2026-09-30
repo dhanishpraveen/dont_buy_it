@@ -6,6 +6,7 @@ import { mockAccessOptions } from "../../shared/data/mockAccessOptions.js";
 import { UserModel } from "../models/User.js";
 import { ItemModel } from "../models/Item.js";
 import { ListingModel } from "../models/Listing.js";
+import { seedSupabaseProjectorDemo } from "./projectorDemoSeed.js";
 
 const userIds = new Map<string, Types.ObjectId>();
 const itemIds = new Map<string, Types.ObjectId>();
@@ -17,6 +18,11 @@ function stableId(seed: string): Types.ObjectId {
 }
 
 async function seed() {
+  if (getDatabaseMode() === "supabase") {
+    await seedSupabaseProjectorDemo();
+    return;
+  }
+
   if (getDatabaseMode() !== "mongo")
     throw new Error("Set DATABASE_MODE=mongo before running the seed command.");
   await connectToDatabase();

@@ -22,6 +22,8 @@ import { MyRequestsPage } from './pages/MyRequestsPage';
 import { ReceivedRequestsPage } from './pages/ReceivedRequestsPage';
 import { RequestDetailsPage } from './pages/RequestDetailsPage';
 import { ExchangeDetailsPage } from './pages/ExchangeDetailsPage';
+import { MessagesPage } from './pages/MessagesPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 
 const authenticatedRoutes = [
     { path: '/dashboard', title: 'Dashboard' },
@@ -65,7 +67,10 @@ export function App() {
                     <Route path="/requests/:id" element={<ProtectedRoute><RequestDetailsPage /></ProtectedRoute>} />
                     <Route path="/requests" element={<ProtectedRoute><MyRequestsPage /></ProtectedRoute>} />
                     <Route path="/exchanges/:id" element={<ProtectedRoute><ExchangeDetailsPage /></ProtectedRoute>} />
-                    {authenticatedRoutes.filter((route) => !['/dashboard', '/browse', '/listings', '/requests'].includes(route.path)).map((route) => <Route key={route.path} path={route.path} element={<ProtectedRoute><RoutePlaceholder title={route.title} /></ProtectedRoute>} />)}
+                    <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
+                    <Route path="/messages/:conversationId" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
+                    <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+                    {authenticatedRoutes.filter((route) => !['/dashboard', '/browse', '/listings', '/requests', '/messages', '/notifications'].includes(route.path)).map((route) => <Route key={route.path} path={route.path} element={<ProtectedRoute><RoutePlaceholder title={route.title} /></ProtectedRoute>} />)}
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
