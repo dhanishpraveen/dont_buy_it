@@ -71,6 +71,23 @@ beforeEach(() => {
 });
 
 describe("listing API with Supabase request identity", () => {
+  it("allows cross-origin listing requests and their authorization preflight", async () => {
+    await request(app)
+      .options("/api/users/me/listings")
+      .set("Origin", "https://dont-buy-it.example")
+      .set("Access-Control-Request-Method", "GET")
+      .set("Access-Control-Request-Headers", "authorization,content-type")
+      .expect(204)
+      .expect("Access-Control-Allow-Origin", "*")
+      .expect("Access-Control-Allow-Headers", "Authorization, Content-Type");
+
+    await request(app)
+      .get("/api/listings")
+      .set("Origin", "https://dont-buy-it.example")
+      .expect(200)
+      .expect("Access-Control-Allow-Origin", "*");
+  });
+
   it("returns structured database diagnostics only outside production", async () => {
     const owner = authed(verifiedAgent("Diagnostic Owner"));
     const originalNodeEnv = process.env.NODE_ENV;

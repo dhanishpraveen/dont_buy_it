@@ -30,6 +30,22 @@ if (process.env.PORT && Number(process.env.PORT) !== port) {
   throw new Error("The backend must run on PORT=3000.");
 }
 
+app.use((request, response, next) => {
+  response.setHeader("Access-Control-Allow-Origin", "*");
+  response.setHeader(
+    "Access-Control-Allow-Headers",
+    "Authorization, Content-Type",
+  );
+  response.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PATCH, DELETE, OPTIONS",
+  );
+  if (request.method === "OPTIONS") {
+    response.sendStatus(204);
+    return;
+  }
+  next();
+});
 app.use(express.json({ limit: "1mb" }));
 app.use(attachUser);
 app.use(

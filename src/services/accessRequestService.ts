@@ -2,6 +2,7 @@ import type {
   ExchangeRecord,
   AccessRequestRecord,
 } from "../../shared/types/lifecycle";
+import { apiUrl } from "../lib/apiUrl";
 import { supabase } from "../lib/supabase";
 import {
   invalidateExchangeCaches,
@@ -24,7 +25,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   headers.set("Content-Type", "application/json");
   let response: Response;
   try {
-    response = await fetch(`/api${path}`, {
+    response = await fetch(apiUrl(path), {
       ...options,
       credentials: "omit",
       headers,

@@ -1,3 +1,4 @@
+import { apiUrl } from "../lib/apiUrl";
 import { supabase } from "../lib/supabase";
 import { invalidateListingCaches } from "../lib/localStorageCache";
 
@@ -60,7 +61,7 @@ async function request(
   headers.set("Content-Type", "application/json");
   if (session?.access_token)
     headers.set("Authorization", `Bearer ${session.access_token}`);
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(apiUrl(path), {
     ...options,
     credentials: "omit",
     headers,
