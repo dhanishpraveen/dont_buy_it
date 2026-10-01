@@ -90,6 +90,11 @@ export function LiveListingDetailsPage() {
         }
     }, [listing?.item.images]);
 
+    const availabilityDates = useMemo(
+        () => getAvailabilityDates(listing?.availableFrom ?? null, listing?.availableUntil ?? null),
+        [listing?.availableFrom, listing?.availableUntil],
+    );
+
     if (loading) {
         return (
             <div className="py-20 text-center text-sm text-muted" role="status">
@@ -129,11 +134,6 @@ export function LiveListingDetailsPage() {
                 .filter(Boolean)
                 .join(' → ')
             : 'Flexible timing';
-    const availabilityDates = useMemo(
-        () => getAvailabilityDates(listing.availableFrom, listing.availableUntil),
-        [listing.availableFrom, listing.availableUntil],
-    );
-
     return (
         <div className="mx-auto max-w-6xl pb-12">
             <button
@@ -168,8 +168,8 @@ export function LiveListingDetailsPage() {
                                     type="button"
                                     onClick={() => setSelectedImage(image)}
                                     className={`h-20 w-20 overflow-hidden rounded-control border transition ${selectedImage === image
-                                            ? 'border-bark ring-2 ring-sage-soft'
-                                            : 'border-line hover:border-sage'
+                                        ? 'border-bark ring-2 ring-sage-soft'
+                                        : 'border-line hover:border-sage'
                                         }`}
                                 >
                                     <img src={image} alt="" className="h-full w-full object-cover" />
